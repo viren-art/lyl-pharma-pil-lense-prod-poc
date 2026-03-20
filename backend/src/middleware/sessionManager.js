@@ -1,70 +1,95 @@
 /**
  * Session Manager Middleware
- * Handles session creation and validation
+ * Handles session creation, validation, and tracking
  */
 
-/**
- * Create or retrieve session
- * @param {string} sessionId - Optional session ID
- * @returns {Object} Session object with ID and metadata
- */
-export function createSession(sessionId) {
-  return {
-    id: sessionId || generateSessionId(),
-    createdAt: new Date().toISOString(),
-    lastActivity: new Date().toISOString()
-  };
-}
+const sessions = new Map();
 
 /**
- * Validate session exists and is active
- * @param {string} sessionId - Session ID to validate
- * @returns {boolean} True if session is valid
+ * Create or retrieve a session
+ * @param {string} sessionId - Session identifier
+ * @returns {Object} Session object
  */
-export function validateSession(sessionId) {
-  if (!sessionId || typeof sessionId !== 'string') {
-    return false;
+export function getOrCreateSession(sessionId) {
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, {
+      id: sessionId,
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      workflows: [],
+      documents: []
+    });
   }
-  return sessionId.length > 0;
+  
+  const session = sessions.get(sessionId);
+  session.lastActivity = new Date().toISOString();
+  return session;
 }
 
 /**
- * Generate unique session ID
- * @returns {string} Generated session ID
+ * Get session by ID
+ * @param {string} sessionId - Session identifier
+ * @returns {Object|null} Session object or null if not found
  */
-function generateSessionId() {
-  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export function getSession(sessionId) {
+  return sessions.get(sessionId) || null;
+}
+
+/**
+ * Add workflow to session
+ * @param {string} sessionId - Session identifier
+ * @param {string} workflowId - Workflow ID
+ */
+export function addWorkflowToSession(sessionId, workflowId) {
+  const session = getOrCreateSession(sessionId);
+  if (!session.workflows.includes(workflowId)) {
+    session.workflows.push(workflowId);
+  }
+}
+
+/**
+ * Add document to session
+ * @param {string} sessionId - Session identifier
+ * @param {string} documentId - Document ID
+ */
+export function addDocumentToSession(sessionId, documentId) {
+  const session = getOrCreateSession(sessionId);
+  if (!session.documents.includes(documentId)) {
+    session.documents.push(documentId);
+  }
+}
+
+/**
+ * Clear all sessions (for testing)
+ */
+export function clearSessions() {
+  sessions.clear();
+}
+
+/**
+ * Get all sessions
+ * @returns {Array<Object>} Array of all sessions
+ */
+export function getAllSessions() {
+  return Array.from(sessions.values());
 }
 
 /**
  * Session middleware for Express
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
+ * Ensures session exists and is tracked
  */
 export function sessionMiddleware(req, res, next) {
-  const sessionId = req.headers['x-session-id'] || req.query.sessionId;
+  const sessionId = req.headers['x-session-id'] || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  if (!sessionId) {
-    return res.status(400).json({
-      error: {
-        code: 'MISSING_SESSION_ID',
-        message: 'Session ID is required in x-session-id header or sessionId query parameter',
-        retryable: false
-      }
-    });
-  }
+  // Create or retrieve session
+  const session = getOrCreateSession(sessionId);
   
-  if (!validateSession(sessionId)) {
-    return res.status(400).json({
-      error: {
-        code: 'INVALID_SESSION_ID',
-        message: 'Session ID is invalid',
-        retryable: false
-      }
-    });
-  }
-  
+  // Attach to request
   req.sessionId = sessionId;
+  req.session = session;
+  
+  // Set session ID in response headers
+  res.setHeader('x-session-id', sessionId);
+  
   next();
 }
