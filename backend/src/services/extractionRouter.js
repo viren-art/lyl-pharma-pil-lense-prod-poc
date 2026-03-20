@@ -1,142 +1,200 @@
-import { extractWithGoogleDocAI } from './providers/googleDocAI.js';
-import { extractWithClaudeVision } from './providers/claudeVision.js';
+import { extractWithGoogleDocAI } from './googleDocAI.js';
+import { extractWithClaudeVision } from './claudeVision.js';
 import { getDocumentById } from './documentManager.js';
-import { convertPdfToImages } from '../utils/pdfConverter.js';
+
+// LYL_DEP: dotenv@^16.3.1
+
+// Configuration for extraction provider
+const EXTRACTION_PROVIDER = process.env.EXTRACTION_PROVIDER || 'google_docai';
+const CRITICAL_SECTIONS = [
+  'DOSAGE AND ADMINISTRATION',
+  'WARNINGS AND PRECAUTIONS',
+  'CONTRAINDICATIONS',
+  'ACTIVE INGREDIENTS',
+  'DOSAGE',
+  'WARNINGS',
+  'PRECAUTIONS'
+];
+const CRITICAL_CONFIDENCE_THRESHOLD = 0.85;
+const GENERAL_CONFIDENCE_THRESHOLD = 0.70;
 
 /**
- * Extraction Router Service
- * Routes document extraction to configured provider (Google Document AI or Claude Vision)
- * Returns standardized extraction result format
- */
-
-// In-memory extraction results cache
-const extractionResults = new Map();
-
-// Configuration - can be changed via environment variable or config file
-let primaryProvider = process.env.EXTRACTION_PROVIDER || 'google_docai';
-
-/**
- * Extract document content using configured provider
- * @param {string} documentId - Document UUID
- * @param {string} sessionId - Session identifier
- * @returns {Promise<Object>} Standardized extraction result
+ * Route extraction request to configured provider
+ * Returns standardized extraction result with fallback logic
  */
 export async function extractDocument(documentId, sessionId) {
+  const document = getDocumentById(documentId);
+  
+  if (!document) {
+    throw new Error(`Document ${documentId} not found`);
+  }
+  
+  if (document.sessionId !== sessionId) {
+    throw new Error('Document does not belong to this session');
+  }
+  
   const startTime = Date.now();
+  let extractionResult;
+  let provider = EXTRACTION_PROVIDER;
+  let fallbackUsed = false;
+  let primaryError = null;
   
   try {
-    // Check if already extracted
-    const cached = extractionResults.get(documentId);
-    if (cached) {
-      console.log(`[ExtractionRouter] Using cached extraction for ${documentId}`);
-      return cached;
-    }
-    
-    // Get document from storage
-    const document = getDocumentById(documentId);
-    if (!document) {
-      throw new Error(`Document not found: ${documentId}`);
-    }
-    
-    console.log(`[ExtractionRouter] Extracting document ${documentId} using ${primaryProvider}`, {
-      documentName: document.name,
-      documentType: document.type,
-      sessionId
+    // Try primary provider
+    console.info('Attempting extraction with primary provider', {
+      documentId,
+      provider
     });
     
-    // Convert PDF to images for extraction
-    const pageImages = await convertPdfToImages(document.fileBlob);
+    if (provider === 'google_docai') {
+      extractionResult = await extractWithGoogleDocAI(document);
+    } else if (provider === 'claude_vision') {
+      extractionResult = await extractWithClaudeVision(document);
+    } else {
+      throw new Error(`Unknown extraction provider: ${provider}`);
+    }
     
-    let extractionResult;
-    let provider = primaryProvider;
+    // Validate extraction result
+    if (!extractionResult || !extractionResult.sections || extractionResult.sections.length === 0) {
+      throw new Error('Primary provider returned no sections');
+    }
     
-    try {
-      // Try primary provider
-      if (primaryProvider === 'google_docai') {
-        extractionResult = await extractWithGoogleDocAI(document.fileBlob, pageImages);
-      } else if (primaryProvider === 'claude_vision') {
-        extractionResult = await extractWithClaudeVision(document.fileBlob, pageImages);
-      } else {
-        throw new Error(`Unknown extraction provider: ${primaryProvider}`);
+    // Check if critical sections meet confidence threshold
+    const needsFallback = checkCriticalConfidence(extractionResult.sections);
+    
+    if (needsFallback && provider === 'google_docai') {
+      console.warn('Critical sections below confidence threshold, falling back to Claude Vision', {
+        documentId,
+        provider: 'google_docai'
+      });
+      
+      // Store primary result for comparison
+      primaryError = new Error('Critical sections below confidence threshold');
+      
+      // Fallback to Claude Vision
+      try {
+        extractionResult = await extractWithClaudeVision(document);
+        provider = 'claude_vision';
+        fallbackUsed = true;
+        
+        console.info('Fallback extraction successful', {
+          documentId,
+          fallbackProvider: 'claude_vision',
+          sectionCount: extractionResult.sections.length
+        });
+      } catch (fallbackError) {
+        console.error('Fallback extraction also failed', {
+          documentId,
+          fallbackProvider: 'claude_vision',
+          error: fallbackError.message
+        });
+        
+        // If fallback fails, throw error indicating both providers failed
+        throw new Error(`Both extraction providers failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`);
       }
-    } catch (primaryError) {
-      console.warn(`[ExtractionRouter] Primary provider ${primaryProvider} failed, attempting fallback`, {
-        error: primaryError.message,
+    }
+    
+  } catch (error) {
+    console.error('Primary extraction provider failed', {
+      documentId,
+      provider,
+      error: error.message
+    });
+    
+    // Only attempt fallback if we haven't already tried it
+    if (!fallbackUsed && provider === 'google_docai') {
+      console.info('Attempting fallback to Claude Vision after primary failure', {
         documentId
       });
       
-      // Fallback to alternative provider
-      provider = primaryProvider === 'google_docai' ? 'claude_vision' : 'google_docai';
-      
-      if (provider === 'google_docai') {
-        extractionResult = await extractWithGoogleDocAI(document.fileBlob, pageImages);
-      } else {
-        extractionResult = await extractWithClaudeVision(document.fileBlob, pageImages);
+      try {
+        extractionResult = await extractWithClaudeVision(document);
+        provider = 'claude_vision';
+        fallbackUsed = true;
+        
+        console.info('Fallback extraction successful after primary failure', {
+          documentId,
+          fallbackProvider: 'claude_vision',
+          sectionCount: extractionResult.sections.length
+        });
+      } catch (fallbackError) {
+        console.error('Both extraction providers failed', {
+          documentId,
+          primaryProvider: 'google_docai',
+          fallbackProvider: 'claude_vision',
+          primaryError: error.message,
+          fallbackError: fallbackError.message
+        });
+        
+        // Both providers failed - throw comprehensive error
+        throw new Error(`Both extraction providers failed. Google Document AI: ${error.message}. Claude Vision: ${fallbackError.message}`);
       }
-      
-      console.log(`[ExtractionRouter] Fallback to ${provider} successful`);
+    } else {
+      // No fallback available or already tried - re-throw original error
+      throw error;
     }
-    
-    const processingTimeMs = Date.now() - startTime;
-    
-    // Standardize result format
-    const result = {
-      documentId,
-      provider,
-      sections: extractionResult.sections,
-      pageImages: pageImages.map((img, idx) => ({
-        pageNumber: idx + 1,
-        imageBase64: img
-      })),
-      processingTimeMs,
-      processedDate: new Date().toISOString()
-    };
-    
-    // Cache result
-    extractionResults.set(documentId, result);
-    
-    console.log(`[ExtractionRouter] Extraction completed for ${documentId}`, {
-      provider,
-      sectionCount: result.sections.length,
-      processingTimeMs
-    });
-    
-    return result;
-    
-  } catch (error) {
-    console.error(`[ExtractionRouter] Extraction failed for ${documentId}`, {
-      error: error.message,
-      stack: error.stack
-    });
-    
-    throw new Error(`Document extraction failed: ${error.message}`);
-  }
-}
-
-/**
- * Set extraction provider
- * @param {string} provider - 'google_docai' or 'claude_vision'
- */
-export function setExtractionProvider(provider) {
-  if (provider !== 'google_docai' && provider !== 'claude_vision') {
-    throw new Error(`Invalid provider: ${provider}. Must be 'google_docai' or 'claude_vision'`);
   }
   
-  primaryProvider = provider;
-  console.log(`[ExtractionRouter] Provider changed to ${provider}`);
+  const processingTimeMs = Date.now() - startTime;
+  
+  // Add metadata to result
+  const result = {
+    ...extractionResult,
+    documentId,
+    provider,
+    fallbackUsed,
+    processingTimeMs,
+    processedDate: new Date().toISOString()
+  };
+  
+  console.info('Document extraction completed', {
+    documentId,
+    provider,
+    fallbackUsed,
+    processingTimeMs,
+    sectionCount: result.sections.length,
+    pageCount: result.pageImages.length
+  });
+  
+  return result;
 }
 
 /**
- * Get current extraction provider
- * @returns {string} Current provider name
+ * Check if critical sections meet confidence threshold
+ * Returns true if fallback is needed
+ */
+function checkCriticalConfidence(sections) {
+  for (const section of sections) {
+    const isCritical = CRITICAL_SECTIONS.some(criticalName => 
+      section.sectionName.toUpperCase().includes(criticalName)
+    );
+    
+    if (isCritical && section.confidenceScore < CRITICAL_CONFIDENCE_THRESHOLD) {
+      console.warn('Critical section below confidence threshold', {
+        sectionName: section.sectionName,
+        confidenceScore: section.confidenceScore,
+        threshold: CRITICAL_CONFIDENCE_THRESHOLD
+      });
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Get current extraction provider configuration
  */
 export function getExtractionProvider() {
-  return primaryProvider;
+  return EXTRACTION_PROVIDER;
 }
 
 /**
- * Clear extraction cache (for testing)
+ * Get confidence thresholds
  */
-export function clearExtractionCache() {
-  extractionResults.clear();
+export function getConfidenceThresholds() {
+  return {
+    critical: CRITICAL_CONFIDENCE_THRESHOLD,
+    general: GENERAL_CONFIDENCE_THRESHOLD
+  };
 }
