@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{productName}} - Thailand FDA PIL</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: {{fontFamily}};
+      font-size: {{bodyFontSize}};
+      line-height: {{lineHeight}};
+      color: #000;
+      background: #fff;
+    }
+    
+    .page {
+      width: {{pageWidth}};
+      height: {{pageHeight}};
+      padding: 10mm;
+      page-break-after: always;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 8mm;
+      padding-bottom: 4mm;
+      border-bottom: 2px solid #000;
+    }
+    
+    .product-name {
+      font-size: {{productNameFontSize}};
+      font-weight: 700;
+      margin-bottom: 2mm;
+    }
+    
+    .section {
+      margin-bottom: 6mm;
+      page-break-inside: avoid;
+    }
+    
+    .section-heading {
+      font-size: {{headingFontSize}};
+      font-weight: 700;
+      margin-bottom: 2mm;
+      text-transform: uppercase;
+      border-bottom: 1px solid #333;
+      padding-bottom: 1mm;
+    }
+    
+    .section-content {
+      text-align: justify;
+    }
+    
+    .content-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 2mm 0;
+    }
+    
+    .content-table td {
+      border: 1px solid #666;
+      padding: 1mm 2mm;
+      vertical-align: top;
+    }
+    
+    .footer {
+      position: fixed;
+      bottom: 10mm;
+      left: 10mm;
+      right: 10mm;
+      padding-top: 4mm;
+      border-top: 1px solid #666;
+      font-size: 8pt;
+      color: #666;
+    }
+    
+    .regulatory-disclaimer {
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 2mm;
+    }
+    
+    .emergency-contact {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+    }
+    
+    @media print {
+      .page {
+        page-break-after: always;
+      }
+      
+      .section {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="product-name">{{productName}}</div>
+      <div style="font-size: 9pt; color: #666;">เอกสารข้อมูลสำหรับผู้ป่วย</div>
+      <div style="font-size: 8pt; color: #999; margin-top: 2mm;">สร้างเมื่อ: {{generatedDate}}</div>
+    </div>
+    
+    <div class="content">
+      {{sections}}
+    </div>
+    
+    <div class="footer">
+      <div class="regulatory-disclaimer">{{regulatoryDisclaimer}}</div>
+      <div class="emergency-contact">
+        <div>โทรฉุกเฉิน: {{emergencyPhone}}</div>
+        <div>ที่อยู่: {{emergencyAddress}}</div>
+        <div>เวลาทำการ: {{emergencyHours}}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
