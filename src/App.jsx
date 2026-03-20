@@ -18,8 +18,11 @@ import Page14 from './pages/F7'
 import Page15 from './pages/F7'
 import Page16 from './pages/F7'
 import Page17 from './pages/F7'
-import Page18 from './pages/F8'
-import Page19 from './pages/_deploy_spec'
+import Page18 from './pages/F7'
+import Page19 from './pages/F8'
+import Page20 from './pages/_deploy_spec'
+import Page21 from './pages/_scaffold'
+import Page22 from './pages/_scaffold'
 
 export default function App() {
   const [navOpen, setNavOpen] = useState(false)
@@ -55,8 +58,11 @@ export default function App() {
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f8" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Workflow Results Display …</Link>
           <Link to="/_deploy_spec" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Deploy Spec</Link>
+          <Link to="/_scaffold" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Project Scaffold</Link>
+          <Link to="/_scaffold" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Project Scaffold</Link>
           </div>
         </div>
         {navOpen && (
@@ -79,8 +85,11 @@ export default function App() {
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
           <Link to="/f8" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Workflow Results Display …</Link>
           <Link to="/_deploy_spec" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Deploy Spec</Link>
+          <Link to="/_scaffold" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Project Scaffold</Link>
+          <Link to="/_scaffold" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Project Scaffold</Link>
           </div>
         )}
       </nav>
@@ -106,8 +115,11 @@ export default function App() {
         <Route path="/f7" element={<Page15 />} />
         <Route path="/f7" element={<Page16 />} />
         <Route path="/f7" element={<Page17 />} />
-        <Route path="/f8" element={<Page18 />} />
-        <Route path="/_deploy_spec" element={<Page19 />} />
+        <Route path="/f7" element={<Page18 />} />
+        <Route path="/f8" element={<Page19 />} />
+        <Route path="/_deploy_spec" element={<Page20 />} />
+        <Route path="/_scaffold" element={<Page21 />} />
+        <Route path="/_scaffold" element={<Page22 />} />
         </Routes>
       </main>
     </div>

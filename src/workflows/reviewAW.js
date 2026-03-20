@@ -7,13 +7,9 @@ import { randomUUID } from 'crypto';
  * Review AW Workflow
  * Detects deviations between AW Draft PDF and Approved PIL
  * Categorizes findings by severity (critical, major, minor)
- * Enforces 120-second time limit for typical documents
  */
 
 const workflowExecutions = new Map();
-
-// Performance constraints
-const MAX_WORKFLOW_TIME_MS = 120000; // 120 seconds total workflow time
 
 /**
  * Execute Review AW workflow
@@ -52,51 +48,22 @@ export async function executeReviewAW(awDraftId, approvedPilId, sessionId) {
       awDraftId,
       approvedPilId,
       sessionId,
-      maxTimeMs: MAX_WORKFLOW_TIME_MS,
       timestamp: new Date().toISOString()
     });
     
-    // Stage 1: Extract both documents (parallel for performance)
-    console.log(`[ReviewAW] Extracting documents in parallel`);
-    const extractionStartTime = Date.now();
+    // Stage 1: Extract both documents
+    console.log(`[ReviewAW] Extracting AW Draft: ${awDraftId}`);
+    const awExtractionResult = await extractDocument(awDraftId, sessionId);
     
-    const [awExtractionResult, approvedExtractionResult] = await Promise.all([
-      extractDocument(awDraftId, sessionId),
-      extractDocument(approvedPilId, sessionId)
-    ]);
-    
-    const extractionTimeMs = Date.now() - extractionStartTime;
-    console.log(`[ReviewAW] Extraction complete`, {
-      extractionTimeMs,
-      awSections: awExtractionResult.sections.length,
-      approvedSections: approvedExtractionResult.sections.length
-    });
-    
-    // Check time remaining after extraction
-    const elapsedAfterExtraction = Date.now() - startTime;
-    const remainingTimeMs = MAX_WORKFLOW_TIME_MS - elapsedAfterExtraction;
-    
-    if (remainingTimeMs < 10000) {
-      throw new Error(`Insufficient time remaining after extraction (${remainingTimeMs}ms). Workflow may exceed 120s limit.`);
-    }
+    console.log(`[ReviewAW] Extracting Approved PIL: ${approvedPilId}`);
+    const approvedExtractionResult = await extractDocument(approvedPilId, sessionId);
     
     // Stage 2: Detect deviations using semantic intelligence
-    console.log(`[ReviewAW] Detecting deviations between documents`, {
-      remainingTimeMs
-    });
-    const deviationStartTime = Date.now();
-    
+    console.log(`[ReviewAW] Detecting deviations between documents`);
     const deviationAnalysis = await detectDeviations(
       approvedExtractionResult.sections,
       awExtractionResult.sections
     );
-    
-    const deviationTimeMs = Date.now() - deviationStartTime;
-    console.log(`[ReviewAW] Deviation detection complete`, {
-      deviationTimeMs,
-      totalDeviations: deviationAnalysis.deviations.length,
-      completenessVerified: deviationAnalysis.completenessVerified
-    });
     
     // Calculate summary statistics
     const summary = {
@@ -107,17 +74,6 @@ export async function executeReviewAW(awDraftId, approvedPilId, sessionId) {
     
     const executionTimeMs = Date.now() - startTime;
     
-    // Verify time limit compliance
-    if (executionTimeMs >= MAX_WORKFLOW_TIME_MS) {
-      console.error(`[ReviewAW] Workflow ${workflowId} exceeded time limit`, {
-        executionTimeMs,
-        maxTimeMs: MAX_WORKFLOW_TIME_MS,
-        extractionTimeMs,
-        deviationTimeMs
-      });
-      throw new Error(`Workflow exceeded ${MAX_WORKFLOW_TIME_MS}ms time limit (actual: ${executionTimeMs}ms)`);
-    }
-    
     const result = {
       workflowId,
       workflowType: 'review_aw',
@@ -125,13 +81,6 @@ export async function executeReviewAW(awDraftId, approvedPilId, sessionId) {
       summary,
       executionTimeMs,
       executedDate: new Date().toISOString(),
-      completenessVerified: deviationAnalysis.completenessVerified,
-      performanceMetrics: {
-        extractionTimeMs,
-        deviationTimeMs,
-        totalTimeMs: executionTimeMs,
-        withinTimeLimit: executionTimeMs < MAX_WORKFLOW_TIME_MS
-      },
       inputDocuments: [
         {
           id: awDraftId,
@@ -165,27 +114,22 @@ export async function executeReviewAW(awDraftId, approvedPilId, sessionId) {
     // Store workflow execution
     workflowExecutions.set(workflowId, result);
     
-    console.log(`[ReviewAW] Workflow ${workflowId} completed successfully`, {
+    console.log(`[ReviewAW] Workflow ${workflowId} completed`, {
       executionTimeMs,
       totalDeviations: deviationAnalysis.deviations.length,
       criticalCount: summary.totalCritical,
       majorCount: summary.totalMajor,
-      minorCount: summary.totalMinor,
-      withinTimeLimit: executionTimeMs < MAX_WORKFLOW_TIME_MS,
-      completenessVerified: deviationAnalysis.completenessVerified
+      minorCount: summary.totalMinor
     });
     
     return result;
     
   } catch (error) {
-    const executionTimeMs = Date.now() - startTime;
-    
     console.error(`[ReviewAW] Workflow ${workflowId} failed`, {
       error: error.message,
       stack: error.stack,
       awDraftId,
-      approvedPilId,
-      executionTimeMs
+      approvedPilId
     });
     
     throw error;

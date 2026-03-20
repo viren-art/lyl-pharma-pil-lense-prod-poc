@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-export default function F5Preview()
 export default function F5Preview() {
   const [approvedPilId, setApprovedPilId] = React.useState('');
   const [changeTriggerDocumentId, setChangeTriggerDocumentId] = React.useState('');

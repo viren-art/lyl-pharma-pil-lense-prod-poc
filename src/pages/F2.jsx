@@ -5,7 +5,6 @@ export default function F2Preview() {
   const [deploymentStatus, setDeploymentStatus] = useState('deploying');
   const [healthData, setHealthData] = useState(null);
   const [sessionData, setSessionData] = useState(null);
-  const [slaData, setSlaData] = useState(null);
 
   useEffect(() => {
     // Simulate deployment progress
@@ -14,11 +13,6 @@ export default function F2Preview() {
       setHealthData({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        businessHours: {
-          current: true,
-          timezone: 'GMT+8',
-          hours: '9:00-18:00 Monday-Friday',
-        },
         services: {
           googleDocumentAi: 'available',
           claudeApi: 'available',
@@ -27,17 +21,12 @@ export default function F2Preview() {
         memoryUsage: {
           heapUsedMb: 1247,
           heapTotalMb: 4096,
-          heapUsagePercent: 30,
           documentsInMemory: 23,
         },
         sessions: {
           active: 3,
           totalDocuments: 23,
           totalWorkflows: 8,
-        },
-        sla: {
-          target: '95% uptime during business hours',
-          currentStatus: 'meeting',
         },
       });
       setSessionData({
@@ -49,33 +38,11 @@ export default function F2Preview() {
         createdAt: new Date(Date.now() - 3600000).toISOString(),
         lastActivity: new Date().toISOString(),
       });
-      setSlaData({
-        uptime: {
-          seconds: 14523,
-          formatted: '4h 2m',
-          target: '95% during business hours (9:00-18:00 GMT+8 Monday-Friday)',
-        },
-        performance: {
-          memoryUsagePercent: 30,
-          documentsInMemory: 23,
-          documentLimit: 100,
-          capacityRemaining: 77,
-        },
-        availability: {
-          last24h: 99.2,
-          last7d: 97.8,
-          businessHoursOnly: 98.5,
-        },
-        alerts: {
-          active: 0,
-          last24h: 2,
-        },
-      });
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  const memoryPercent = healthData ? healthData.memoryUsage.heapUsagePercent : 0;
+  const memoryPercent = healthData ? (healthData.memoryUsage.heapUsedMb / healthData.memoryUsage.heapTotalMb) * 100 : 0;
   const documentPercent = sessionData ? (sessionData.documentCount / sessionData.maxDocuments) * 100 : 0;
 
   return (
@@ -115,7 +82,7 @@ export default function F2Preview() {
       {/* Tabs */}
       <div className="max-w-7xl mx-auto px-6 pt-6">
         <div className="flex gap-2 border-b border-white/5">
-          {['deployment', 'health', 'sla', 'sessions', 'secrets'].map((tab) => (
+          {['deployment', 'health', 'sessions', 'secrets'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -271,44 +238,13 @@ export default function F2Preview() {
               </div>
             </div>
 
-            {/* Business Hours Status */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">Business Hours Status</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">Current Status</div>
-                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                    {healthData.businessHours.current ? 'BUSINESS HOURS' : 'OFF HOURS'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">Timezone</div>
-                  <div className="text-sm text-zinc-300">{healthData.businessHours.timezone}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">Hours</div>
-                  <div className="text-sm text-zinc-300">{healthData.businessHours.hours}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">SLA Target</div>
-                  <div className="text-sm text-zinc-300">{healthData.sla.target}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">SLA Status</div>
-                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                    {healthData.sla.currentStatus}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Memory Usage */}
             <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
               <h2 className="text-lg font-bold text-white mb-4">Memory Usage</h2>
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-zinc-400">Heap Memory</div>
                 <div className="text-sm text-zinc-300">
-                  {healthData.memoryUsage.heapUsedMb} MB / {healthData.memoryUsage.heapTotalMb} MB ({healthData.memoryUsage.heapUsagePercent}%)
+                  {healthData.memoryUsage.heapUsedMb} MB / {healthData.memoryUsage.heapTotalMb} MB
                 </div>
               </div>
               <div className="h-3 bg-zinc-900 rounded-full overflow-hidden">
@@ -337,135 +273,6 @@ export default function F2Preview() {
                 <div>
                   <div className="text-xs text-zinc-500 mb-1">Total Workflows</div>
                   <div className="text-3xl font-bold text-white">{healthData.sessions.totalWorkflows}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'sla' && slaData && (
-          <div className="space-y-6">
-            {/* SLA Overview */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">SLA Overview</h2>
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Last 24 Hours</div>
-                  <div className="text-3xl font-bold text-white">{slaData.availability.last24h}%</div>
-                  <div className="text-xs text-emerald-400 mt-1">Above target (95%)</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Last 7 Days</div>
-                  <div className="text-3xl font-bold text-white">{slaData.availability.last7d}%</div>
-                  <div className="text-xs text-emerald-400 mt-1">Above target (95%)</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Business Hours Only</div>
-                  <div className="text-3xl font-bold text-white">{slaData.availability.businessHoursOnly}%</div>
-                  <div className="text-xs text-emerald-400 mt-1">Meeting SLA</div>
-                </div>
-              </div>
-              <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/5">
-                <div className="text-xs text-zinc-500 mb-2">SLA Target</div>
-                <div className="text-sm text-zinc-300">{slaData.uptime.target}</div>
-              </div>
-            </div>
-
-            {/* Uptime Metrics */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">Uptime Metrics</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">Current Uptime</div>
-                  <div className="text-sm text-zinc-300 font-mono">{slaData.uptime.formatted}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-zinc-400">Total Seconds</div>
-                  <div className="text-sm text-zinc-300">{slaData.uptime.seconds.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Performance Metrics */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">Performance Metrics</h2>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm text-zinc-400">Memory Usage</div>
-                    <div className="text-sm text-zinc-300">{slaData.performance.memoryUsagePercent}%</div>
-                  </div>
-                  <div className="h-3 bg-zinc-900 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all"
-                      style={{ width: `${slaData.performance.memoryUsagePercent}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm text-zinc-400">Document Capacity</div>
-                    <div className="text-sm text-zinc-300">
-                      {slaData.performance.documentsInMemory} / {slaData.performance.documentLimit}
-                    </div>
-                  </div>
-                  <div className="h-3 bg-zinc-900 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-purple-600 transition-all"
-                      style={{ width: `${100 - slaData.performance.capacityRemaining}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-zinc-500 mt-2">
-                    {slaData.performance.capacityRemaining}% capacity remaining
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Alert Status */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">Alert Status</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Active Alerts</div>
-                  <div className="text-3xl font-bold text-white">{slaData.alerts.active}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Last 24 Hours</div>
-                  <div className="text-3xl font-bold text-white">{slaData.alerts.last24h}</div>
-                </div>
-              </div>
-              {slaData.alerts.active === 0 && (
-                <div className="mt-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="text-emerald-400">✓</div>
-                    <div className="text-sm text-emerald-400">No active alerts</div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Monitoring Configuration */}
-            <div className="bg-zinc-800/50 rounded-2xl p-6 border border-white/[0.06] shadow-lg shadow-black/20">
-              <h2 className="text-lg font-bold text-white mb-4">Monitoring Configuration</h2>
-              <div className="space-y-3">
-                <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/5">
-                  <div className="text-sm font-semibold text-white mb-2">Uptime Check</div>
-                  <div className="text-xs text-zinc-400">60-second interval health checks from ASIA_PACIFIC region</div>
-                </div>
-                <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/5">
-                  <div className="text-sm font-semibold text-white mb-2">Alert Policies</div>
-                  <div className="text-xs text-zinc-400">
-                    • Health check failure rate &gt; 5%<br/>
-                    • Memory usage &gt; 90%<br/>
-                    • P95 latency &gt; 30 seconds
-                  </div>
-                </div>
-                <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/5">
-                  <div className="text-sm font-semibold text-white mb-2">SLO Tracking</div>
-                  <div className="text-xs text-zinc-400">
-                    95% availability target with 24-hour rolling window
-                  </div>
                 </div>
               </div>
             </div>

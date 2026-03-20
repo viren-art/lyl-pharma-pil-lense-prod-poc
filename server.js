@@ -61,13 +61,17 @@ try { route14 = require('./src/routes/workflows.js'); } catch(e) { console.warn(
 let route15 = null;
 try { route15 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
 let route16 = null;
-try { route16 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
+try { route16 = require('./src/routes/regulatoryAudit.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/regulatoryAudit.js:', e.message); }
 let route17 = null;
 try { route17 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
 let route18 = null;
 try { route18 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
 let route19 = null;
-try { route19 = require('./src/routes/workflows.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/workflows.js:', e.message); }
+try { route19 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
+let route20 = null;
+try { route20 = require('./src/routes/generateAW.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/generateAW.js:', e.message); }
+let route21 = null;
+try { route21 = require('./src/routes/workflows.js'); } catch(e) { console.warn('[Scaffold] Failed to load ./src/routes/workflows.js:', e.message); }
 
 if (route0) {
     const handler0 = route0.default || route0.router || route0;
@@ -200,9 +204,9 @@ if (route0) {
   if (route16) {
     const handler16 = route16.default || route16.router || route16;
     if (typeof handler16 === 'function' || (handler16 && typeof handler16.use === 'function')) {
-      app.use('/api/generateAW', handler16);
+      app.use('/api/regulatoryAudit', handler16);
     } else {
-      console.warn('[Scaffold] Skipping /api/generateAW — module is not a valid Express middleware/router');
+      console.warn('[Scaffold] Skipping /api/regulatoryAudit — module is not a valid Express middleware/router');
     }
   }
   if (route17) {
@@ -224,7 +228,23 @@ if (route0) {
   if (route19) {
     const handler19 = route19.default || route19.router || route19;
     if (typeof handler19 === 'function' || (handler19 && typeof handler19.use === 'function')) {
-      app.use('/api/workflows', handler19);
+      app.use('/api/generateAW', handler19);
+    } else {
+      console.warn('[Scaffold] Skipping /api/generateAW — module is not a valid Express middleware/router');
+    }
+  }
+  if (route20) {
+    const handler20 = route20.default || route20.router || route20;
+    if (typeof handler20 === 'function' || (handler20 && typeof handler20.use === 'function')) {
+      app.use('/api/generateAW', handler20);
+    } else {
+      console.warn('[Scaffold] Skipping /api/generateAW — module is not a valid Express middleware/router');
+    }
+  }
+  if (route21) {
+    const handler21 = route21.default || route21.router || route21;
+    if (typeof handler21 === 'function' || (handler21 && typeof handler21.use === 'function')) {
+      app.use('/api/workflows', handler21);
     } else {
       console.warn('[Scaffold] Skipping /api/workflows — module is not a valid Express middleware/router');
     }
@@ -244,7 +264,7 @@ if (fs.existsSync(path.join(publicDir, 'index.html'))) {
     res.json({
       name: 'pil-lens-pharmaceutical-document-intelligence-for-',
       version: '1.0.0',
-      endpoints: ['/health', '/api/documents', '/api/documents', '/api/extraction', '/api/health', '/api/extraction', '/api/health', '/api/extraction', '/api/health', '/api/workflows', '/api/assessVariation', '/api/assessVariation', '/api/assessVariation', '/api/workflows', '/api/workflows', '/api/workflows', '/api/generateAW', '/api/generateAW', '/api/generateAW', '/api/generateAW', '/api/workflows'],
+      endpoints: ['/health', '/api/documents', '/api/documents', '/api/extraction', '/api/health', '/api/extraction', '/api/health', '/api/extraction', '/api/health', '/api/workflows', '/api/assessVariation', '/api/assessVariation', '/api/assessVariation', '/api/workflows', '/api/workflows', '/api/workflows', '/api/generateAW', '/api/regulatoryAudit', '/api/generateAW', '/api/generateAW', '/api/generateAW', '/api/generateAW', '/api/workflows'],
     });
   });
 }
