@@ -1,84 +1,70 @@
-import { randomUUID } from 'crypto';
-
-const sessions = new Map();
-const SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
+/**
+ * Session Manager Middleware
+ * Handles session creation and validation
+ */
 
 /**
- * Create a new session
+ * Create or retrieve session
+ * @param {string} sessionId - Optional session ID
+ * @returns {Object} Session object with ID and metadata
  */
-export function createSession() {
-  const sessionId = randomUUID();
-  const session = {
-    id: sessionId,
-    createdAt: Date.now(),
-    lastActivity: Date.now(),
-    documents: []
+export function createSession(sessionId) {
+  return {
+    id: sessionId || generateSessionId(),
+    createdAt: new Date().toISOString(),
+    lastActivity: new Date().toISOString()
   };
-  sessions.set(sessionId, session);
-  return sessionId;
-}
-
-/**
- * Get session by ID
- */
-export function getSession(sessionId) {
-  const session = sessions.get(sessionId);
-  if (!session) {
-    return null;
-  }
-  
-  // Check if session has expired
-  if (Date.now() - session.lastActivity > SESSION_TIMEOUT) {
-    sessions.delete(sessionId);
-    return null;
-  }
-  
-  // Update last activity
-  session.lastActivity = Date.now();
-  return session;
 }
 
 /**
  * Validate session exists and is active
+ * @param {string} sessionId - Session ID to validate
+ * @returns {boolean} True if session is valid
  */
 export function validateSession(sessionId) {
-  return getSession(sessionId) !== null;
-}
-
-/**
- * Add document to session
- */
-export function addDocumentToSession(sessionId, documentId) {
-  const session = getSession(sessionId);
-  if (session && !session.documents.includes(documentId)) {
-    session.documents.push(documentId);
+  if (!sessionId || typeof sessionId !== 'string') {
+    return false;
   }
-  return session;
+  return sessionId.length > 0;
 }
 
 /**
- * Get all documents in session
+ * Generate unique session ID
+ * @returns {string} Generated session ID
  */
-export function getSessionDocuments(sessionId) {
-  const session = getSession(sessionId);
-  return session ? session.documents : [];
+function generateSessionId() {
+  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
- * Cleanup expired sessions
+ * Session middleware for Express
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
  */
-export function cleanupExpiredSessions() {
-  const now = Date.now();
-  for (const [sessionId, session] of sessions.entries()) {
-    if (now - session.lastActivity > SESSION_TIMEOUT) {
-      sessions.delete(sessionId);
-    }
+export function sessionMiddleware(req, res, next) {
+  const sessionId = req.headers['x-session-id'] || req.query.sessionId;
+  
+  if (!sessionId) {
+    return res.status(400).json({
+      error: {
+        code: 'MISSING_SESSION_ID',
+        message: 'Session ID is required in x-session-id header or sessionId query parameter',
+        retryable: false
+      }
+    });
   }
-}
-
-/**
- * Clear all sessions (for testing)
- */
-export function clearAllSessions() {
-  sessions.clear();
+  
+  if (!validateSession(sessionId)) {
+    return res.status(400).json({
+      error: {
+        code: 'INVALID_SESSION_ID',
+        message: 'Session ID is invalid',
+        retryable: false
+      }
+    });
+  }
+  
+  req.sessionId = sessionId;
+  next();
 }

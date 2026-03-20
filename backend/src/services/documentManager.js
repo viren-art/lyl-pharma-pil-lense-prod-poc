@@ -1,318 +1,183 @@
-import { randomUUID } from 'crypto';
-import fs from 'fs/promises';
-import path from 'path';
-import { PDFDocument } from 'pdf-lib';
-import mammoth from 'mammoth';
+/**
+ * Document Manager Service
+ * In-memory document storage and retrieval
+ */
 
-// LYL_DEP: pdf-lib@^1.17.1
-// LYL_DEP: mammoth@^1.6.0
+// In-memory document store (session-scoped)
+const documentStore = new Map();
 
-// In-memory document storage (cleared on server restart)
-const documents = new Map();
+// Session document tracking
+const sessionDocuments = new Map();
+
+// Maximum documents per session
 const MAX_DOCUMENTS_PER_SESSION = 100;
 
-// Document type enum
-const DOCUMENT_TYPES = [
-  'innovator_pil',
-  'approved_pil',
-  'aw_draft',
-  'regulatory_source',
-  'updated_pil',
-  'regulatory_announcement',
-  'local_market_pil_format',
-  'diecut_specification',
-  'stamped_pil'
-];
-
-// Allowed MIME types
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-];
-
-const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
-
 /**
- * Validate document upload request
+ * Store document in memory
+ * @param {Object} document - Document object with id, name, type, fileBlob, etc.
+ * @param {string} sessionId - Session identifier
+ * @returns {Object} Stored document
  */
-function validateUpload(file, type, productName, sessionId) {
-  const errors = [];
-
-  // Check file exists
-  if (!file) {
-    errors.push('No file provided');
+export function storeDocument(document, sessionId) {
+  if (!document.id) {
+    throw new Error('Document must have an id');
   }
-
-  // Check file size
-  if (file && file.size > MAX_FILE_SIZE_BYTES) {
-    errors.push(`File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum 25MB`);
-  }
-
-  // Check MIME type
-  if (file && !ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-    errors.push(`Unsupported file type: ${file.mimetype}. Only PDF and Word (.docx) files are allowed`);
-  }
-
-  // Check document type
-  if (!DOCUMENT_TYPES.includes(type)) {
-    errors.push(`Invalid document type: ${type}. Must be one of: ${DOCUMENT_TYPES.join(', ')}`);
-  }
-
-  // Check product name
-  if (!productName || productName.trim().length === 0) {
-    errors.push('Product name is required');
-  }
-
-  // Check session document limit
-  const sessionDocCount = getSessionDocumentCount(sessionId);
-  if (sessionDocCount >= MAX_DOCUMENTS_PER_SESSION) {
-    errors.push(`Session limit exceeded: maximum ${MAX_DOCUMENTS_PER_SESSION} documents per session`);
-  }
-
-  return errors;
-}
-
-/**
- * Get count of documents in session
- */
-function getSessionDocumentCount(sessionId) {
-  if (!sessionId) return 0;
   
-  let count = 0;
-  for (const doc of documents.values()) {
-    if (doc.sessionId === sessionId) {
-      count++;
-    }
+  // Track session document count
+  if (!sessionDocuments.has(sessionId)) {
+    sessionDocuments.set(sessionId, new Set());
   }
-  return count;
+  
+  const sessionDocs = sessionDocuments.get(sessionId);
+  
+  // Enforce session limit
+  if (!sessionDocs.has(document.id) && sessionDocs.size >= MAX_DOCUMENTS_PER_SESSION) {
+    throw new Error(`Session document limit exceeded: ${MAX_DOCUMENTS_PER_SESSION} documents maximum`);
+  }
+  
+  // Store document
+  documentStore.set(document.id, {
+    ...document,
+    sessionId,
+    storedAt: new Date().toISOString()
+  });
+  
+  sessionDocs.add(document.id);
+  
+  console.log(`[DocumentManager] Document stored`, {
+    documentId: document.id,
+    sessionId,
+    type: document.type,
+    sessionDocCount: sessionDocs.size
+  });
+  
+  return documentStore.get(document.id);
 }
 
 /**
- * Convert Word document to PDF
- * Uses mammoth to extract HTML from Word, then pdf-lib to create PDF
+ * Retrieve document by ID
+ * @param {string} documentId - Document UUID
+ * @returns {Object|null} Document object or null if not found
  */
-async function convertWordToPdf(fileBuffer, originalName) {
-  try {
-    // Extract HTML from Word document using mammoth
-    const result = await mammoth.convertToHtml({ buffer: fileBuffer });
-    const html = result.value;
-
-    // Create a new PDF document
-    const pdfDoc = await PDFDocument.create();
-    
-    // Add a page with standard A4 dimensions (595.28 x 841.89 points)
-    const page = pdfDoc.addPage([595.28, 841.89]);
-    
-    // Get page dimensions
-    const { width, height } = page.getSize();
-    
-    // Strip HTML tags for plain text extraction (basic implementation)
-    // In production, would use a proper HTML-to-PDF renderer like Puppeteer
-    const plainText = html
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Draw text on page (basic implementation - wraps at page width)
-    const fontSize = 11;
-    const lineHeight = fontSize * 1.2;
-    const margin = 50;
-    const maxWidth = width - (margin * 2);
-    
-    let yPosition = height - margin;
-    const words = plainText.split(' ');
-    let currentLine = '';
-    
-    for (const word of words) {
-      const testLine = currentLine + (currentLine ? ' ' : '') + word;
-      const textWidth = testLine.length * (fontSize * 0.5); // Rough estimate
-      
-      if (textWidth > maxWidth && currentLine) {
-        page.drawText(currentLine, {
-          x: margin,
-          y: yPosition,
-          size: fontSize,
-        });
-        currentLine = word;
-        yPosition -= lineHeight;
-        
-        // Add new page if needed
-        if (yPosition < margin) {
-          const newPage = pdfDoc.addPage([595.28, 841.89]);
-          yPosition = newPage.getSize().height - margin;
-        }
-      } else {
-        currentLine = testLine;
-      }
-    }
-    
-    // Draw remaining text
-    if (currentLine) {
-      page.drawText(currentLine, {
-        x: margin,
-        y: yPosition,
-        size: fontSize,
-      });
-    }
-    
-    // Serialize PDF to bytes
-    const pdfBytes = await pdfDoc.save();
-    
-    console.log(`Successfully converted Word document to PDF: ${originalName}`);
-    return Buffer.from(pdfBytes);
-    
-  } catch (error) {
-    console.error(`Word-to-PDF conversion failed for ${originalName}:`, error.message);
-    throw new Error(`Failed to convert Word document to PDF: ${error.message}`);
-  }
-}
-
-/**
- * Extract page count from PDF using pdf-lib
- */
-async function extractPageCount(pdfBuffer) {
-  try {
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const pageCount = pdfDoc.getPageCount();
-    return pageCount;
-  } catch (error) {
-    console.error('Failed to extract page count from PDF:', error.message);
+export function getDocumentById(documentId) {
+  if (!documentId) {
     return null;
   }
-}
-
-/**
- * Upload and store document
- */
-export async function uploadDocument(file, type, productName, sessionId) {
-  // Validate input
-  const validationErrors = validateUpload(file, type, productName, sessionId);
-  if (validationErrors.length > 0) {
-    throw new Error(validationErrors.join('; '));
-  }
-
-  const documentId = randomUUID();
-  const uploadDate = new Date().toISOString();
   
-  let fileBuffer = file.buffer;
-  let mimeType = file.mimetype;
-  let fileName = file.originalname;
-  let pageCount = null;
-
-  // Convert Word to PDF if needed
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    const pdfBuffer = await convertWordToPdf(fileBuffer, fileName);
-    if (pdfBuffer) {
-      fileBuffer = pdfBuffer;
-      mimeType = 'application/pdf';
-      fileName = fileName.replace(/\.docx$/i, '.pdf');
-    }
+  const document = documentStore.get(documentId);
+  
+  if (!document) {
+    console.warn(`[DocumentManager] Document not found: ${documentId}`);
+    return null;
   }
-
-  // Extract page count for PDFs
-  if (mimeType === 'application/pdf') {
-    pageCount = await extractPageCount(fileBuffer);
-  }
-
-  // Store document in memory
-  const document = {
-    id: documentId,
-    name: fileName,
-    type,
-    productName,
-    fileBuffer,
-    mimeType,
-    fileSize: fileBuffer.length,
-    pageCount,
-    uploadDate,
-    sessionId
-  };
-
-  documents.set(documentId, document);
-
-  // Return document metadata (without buffer)
-  return {
-    id: document.id,
-    name: document.name,
-    type: document.type,
-    productName: document.productName,
-    uploadDate: document.uploadDate,
-    fileSize: document.fileSize,
-    pageCount: document.pageCount
-  };
+  
+  return document;
 }
 
 /**
  * Get all documents for a session
+ * @param {string} sessionId - Session identifier
+ * @returns {Array} Array of documents
  */
-export function getDocuments(sessionId) {
-  const sessionDocs = [];
+export function getSessionDocuments(sessionId) {
+  if (!sessionDocuments.has(sessionId)) {
+    return [];
+  }
   
-  for (const doc of documents.values()) {
-    if (!sessionId || doc.sessionId === sessionId) {
-      sessionDocs.push({
-        id: doc.id,
-        name: doc.name,
-        type: doc.type,
-        productName: doc.productName,
-        uploadDate: doc.uploadDate,
-        fileSize: doc.fileSize,
-        pageCount: doc.pageCount
-      });
+  const sessionDocs = sessionDocuments.get(sessionId);
+  const documents = [];
+  
+  for (const docId of sessionDocs) {
+    const doc = documentStore.get(docId);
+    if (doc) {
+      documents.push(doc);
     }
   }
   
-  return sessionDocs.sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate));
+  return documents;
 }
 
 /**
- * Get single document by ID
- */
-export function getDocumentById(documentId) {
-  return documents.get(documentId);
-}
-
-/**
- * Delete document
+ * Delete document from memory
+ * @param {string} documentId - Document UUID
+ * @param {string} sessionId - Session identifier
+ * @returns {boolean} True if deleted, false if not found
  */
 export function deleteDocument(documentId, sessionId) {
-  const doc = documents.get(documentId);
+  const document = documentStore.get(documentId);
   
-  if (!doc) {
-    throw new Error('Document not found');
+  if (!document) {
+    return false;
   }
   
   // Verify session ownership
-  if (sessionId && doc.sessionId !== sessionId) {
-    throw new Error('Unauthorized: document belongs to different session');
+  if (document.sessionId !== sessionId) {
+    throw new Error('Document does not belong to this session');
   }
   
-  documents.delete(documentId);
+  // Remove from session tracking
+  if (sessionDocuments.has(sessionId)) {
+    sessionDocuments.get(sessionId).delete(documentId);
+  }
   
-  return { success: true, deletedId: documentId };
+  // Remove from store
+  documentStore.delete(documentId);
+  
+  console.log(`[DocumentManager] Document deleted`, {
+    documentId,
+    sessionId
+  });
+  
+  return true;
 }
 
 /**
  * Clear all documents for a session
+ * @param {string} sessionId - Session identifier
+ * @returns {number} Number of documents cleared
  */
-export function clearSessionDocuments(sessionId) {
-  if (!sessionId) return;
+export function clearSession(sessionId) {
+  if (!sessionDocuments.has(sessionId)) {
+    return 0;
+  }
   
-  const toDelete = [];
-  for (const [id, doc] of documents.entries()) {
-    if (doc.sessionId === sessionId) {
-      toDelete.push(id);
+  const sessionDocs = sessionDocuments.get(sessionId);
+  let clearedCount = 0;
+  
+  for (const docId of sessionDocs) {
+    if (documentStore.delete(docId)) {
+      clearedCount++;
     }
   }
   
-  toDelete.forEach(id => documents.delete(id));
+  sessionDocuments.delete(sessionId);
   
-  return { cleared: toDelete.length };
+  console.log(`[DocumentManager] Session cleared`, {
+    sessionId,
+    documentsCleared: clearedCount
+  });
+  
+  return clearedCount;
 }
 
 /**
- * Get document types enum
+ * Get document count for session
+ * @param {string} sessionId - Session identifier
+ * @returns {number} Number of documents in session
  */
-export function getDocumentTypes() {
-  return DOCUMENT_TYPES;
+export function getSessionDocumentCount(sessionId) {
+  if (!sessionDocuments.has(sessionId)) {
+    return 0;
+  }
+  
+  return sessionDocuments.get(sessionId).size;
+}
+
+/**
+ * Check if session has reached document limit
+ * @param {string} sessionId - Session identifier
+ * @returns {boolean} True if at limit
+ */
+export function isSessionAtLimit(sessionId) {
+  return getSessionDocumentCount(sessionId) >= MAX_DOCUMENTS_PER_SESSION;
 }
