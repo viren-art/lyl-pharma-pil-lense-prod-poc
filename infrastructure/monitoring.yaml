@@ -1,0 +1,186 @@
+# Cloud Monitoring Alert Policies for PIL Lens
+# Ensures 95% uptime during business hours (9:00-18:00 GMT+8 Monday-Friday)
+
+apiVersion: monitoring.googleapis.com/v1
+kind: AlertPolicy
+metadata:
+  name: pil-lens-uptime-sla
+  displayName: PIL Lens - Business Hours Uptime SLA
+spec:
+  displayName: PIL Lens - Business Hours Uptime SLA
+  documentation:
+    content: |
+      PIL Lens service availability has dropped below 95% during business hours (9:00-18:00 GMT+8 Monday-Friday).
+      
+      **Action Required:**
+      1. Check Cloud Run service status in asia-southeast1
+      2. Review Cloud Logging for error patterns
+      3. Verify Secret Manager API key availability
+      4. Check memory usage and session limits
+      
+      **Escalation:**
+      Contact Lotus Pharmaceutical technical team if downtime exceeds 15 minutes.
+    mimeType: text/markdown
+  conditions:
+  - displayName: Health Check Failure Rate > 5%
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "pil-lens"
+        AND resource.labels.location = "asia-southeast1"
+        AND metric.type = "run.googleapis.com/request_count"
+        AND metric.labels.response_code_class != "2xx"
+      aggregations:
+      - alignmentPeriod: 300s
+        perSeriesAligner: ALIGN_RATE
+        crossSeriesReducer: REDUCE_SUM
+        groupByFields:
+        - resource.service_name
+      comparison: COMPARISON_GT
+      thresholdValue: 0.05
+      duration: 300s
+      trigger:
+        count: 1
+  - displayName: Health Endpoint Unavailable
+    conditionThreshold:
+      filter: |
+        resource.type = "uptime_url"
+        AND resource.labels.host = "pil-lens-REGION-PROJECT_ID.a.run.app"
+        AND metric.type = "monitoring.googleapis.com/uptime_check/check_passed"
+      aggregations:
+      - alignmentPeriod: 60s
+        perSeriesAligner: ALIGN_FRACTION_TRUE
+        crossSeriesReducer: REDUCE_MEAN
+      comparison: COMPARISON_LT
+      thresholdValue: 0.95
+      duration: 300s
+      trigger:
+        count: 1
+  combiner: OR
+  enabled: true
+  notificationChannels:
+  - projects/PROJECT_ID/notificationChannels/CHANNEL_ID
+  alertStrategy:
+    autoClose: 1800s
+    notificationRateLimit:
+      period: 300s
+
+---
+
+apiVersion: monitoring.googleapis.com/v1
+kind: AlertPolicy
+metadata:
+  name: pil-lens-memory-exhaustion
+  displayName: PIL Lens - Memory Exhaustion Warning
+spec:
+  displayName: PIL Lens - Memory Exhaustion Warning
+  documentation:
+    content: |
+      PIL Lens memory usage has exceeded 90% of allocated heap.
+      
+      **Likely Causes:**
+      - Session limit (100 documents) approaching capacity
+      - Large PDF files in memory
+      - Memory leak in extraction pipeline
+      
+      **Action Required:**
+      1. Check /api/health endpoint for documentsInMemory count
+      2. Review active sessions via Cloud Logging
+      3. Consider manual session cleanup if needed
+    mimeType: text/markdown
+  conditions:
+  - displayName: Heap Memory Usage > 90%
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "pil-lens"
+        AND metric.type = "run.googleapis.com/container/memory/utilizations"
+      aggregations:
+      - alignmentPeriod: 60s
+        perSeriesAligner: ALIGN_MEAN
+        crossSeriesReducer: REDUCE_MEAN
+      comparison: COMPARISON_GT
+      thresholdValue: 0.90
+      duration: 300s
+      trigger:
+        count: 1
+  enabled: true
+  notificationChannels:
+  - projects/PROJECT_ID/notificationChannels/CHANNEL_ID
+  alertStrategy:
+    autoClose: 600s
+
+---
+
+apiVersion: monitoring.googleapis.com/v1
+kind: AlertPolicy
+metadata:
+  name: pil-lens-latency-degradation
+  displayName: PIL Lens - P95 Latency Degradation
+spec:
+  displayName: PIL Lens - P95 Latency Degradation
+  documentation:
+    content: |
+      PIL Lens P95 request latency has exceeded 30 seconds.
+      
+      **Likely Causes:**
+      - Google Document AI or Claude API timeout
+      - Large document extraction (>20 pages)
+      - Puppeteer PDF generation bottleneck
+      
+      **Action Required:**
+      1. Check external API latency in Cloud Logging
+      2. Review workflow execution times
+      3. Verify extraction provider configuration
+    mimeType: text/markdown
+  conditions:
+  - displayName: P95 Latency > 30s
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "pil-lens"
+        AND metric.type = "run.googleapis.com/request_latencies"
+      aggregations:
+      - alignmentPeriod: 300s
+        perSeriesAligner: ALIGN_DELTA
+        crossSeriesReducer: REDUCE_PERCENTILE_95
+      comparison: COMPARISON_GT
+      thresholdValue: 30000
+      duration: 300s
+      trigger:
+        count: 1
+  enabled: true
+  notificationChannels:
+  - projects/PROJECT_ID/notificationChannels/CHANNEL_ID
+  alertStrategy:
+    autoClose: 600s
+
+---
+
+apiVersion: monitoring.googleapis.com/v1
+kind: UptimeCheckConfig
+metadata:
+  name: pil-lens-health-check
+  displayName: PIL Lens Health Check (Business Hours)
+spec:
+  displayName: PIL Lens Health Check (Business Hours)
+  monitoredResource:
+    type: uptime_url
+    labels:
+      project_id: PROJECT_ID
+      host: pil-lens-REGION-PROJECT_ID.a.run.app
+  httpCheck:
+    path: /api/health
+    port: 443
+    useSsl: true
+    validateSsl: true
+    requestMethod: GET
+    acceptedResponseStatusCodes:
+    - statusClass: STATUS_CLASS_2XX
+  period: 60s
+  timeout: 10s
+  selectedRegions:
+  - ASIA_PACIFIC
+  contentMatchers:
+  - content: '"status":"healthy"'
+    matcher: CONTAINS_STRING
