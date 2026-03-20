@@ -3,6 +3,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import { 
+  getMarketRequirements, 
+  persistAuditLog, 
+  initializeRegulatoryDatabase 
+} from './regulatoryDatabase.js';
 
 // LYL_DEP: puppeteer@^21.0.0
 // LYL_DEP: pdf-parse@^1.1.1
@@ -18,58 +23,10 @@ const GENERATION_TIMEOUT = 55000; // 55 seconds (5s buffer for workflow overhead
 const PAGE_LOAD_TIMEOUT = 20000; // 20 seconds max for content loading
 const PDF_RENDER_TIMEOUT = 25000; // 25 seconds max for PDF rendering
 
-// Regulatory text verification database
-const REGULATORY_TEXT_REQUIREMENTS = {
-  taiwan_tfda: {
-    disclaimer: '本藥須由醫師處方使用',
-    emergencyPhone: '+886-2-1234-5678',
-    mandatorySections: [
-      'PRODUCT NAME',
-      'ACTIVE INGREDIENTS',
-      'INDICATIONS',
-      'DOSAGE AND ADMINISTRATION',
-      'CONTRAINDICATIONS',
-      'WARNINGS AND PRECAUTIONS',
-      'ADVERSE REACTIONS',
-      'STORAGE'
-    ]
-  },
-  thailand_fda: {
-    disclaimer: 'ยานี้ต้องใช้ตามใบสั่งแพทย์',
-    emergencyPhone: '+66-2-123-4567',
-    mandatorySections: [
-      'PRODUCT NAME',
-      'ACTIVE INGREDIENTS',
-      'THERAPEUTIC INDICATIONS',
-      'POSOLOGY AND METHOD OF ADMINISTRATION',
-      'CONTRAINDICATIONS',
-      'SPECIAL WARNINGS AND PRECAUTIONS FOR USE',
-      'UNDESIRABLE EFFECTS',
-      'STORAGE CONDITIONS'
-    ]
-  }
-};
-
-// Audit trail storage for regulatory compliance
-const regulatoryAuditLog = [];
-
-/**
- * Log regulatory verification event to audit trail
- */
-function logRegulatoryAudit(event) {
-  const auditEntry = {
-    timestamp: new Date().toISOString(),
-    ...event
-  };
-  regulatoryAuditLog.push(auditEntry);
-  
-  // Keep only last 1000 entries to prevent memory bloat
-  if (regulatoryAuditLog.length > 1000) {
-    regulatoryAuditLog.shift();
-  }
-  
-  console.log('[RegulatoryAudit]', JSON.stringify(auditEntry));
-}
+// Initialize regulatory database on module load
+initializeRegulatoryDatabase().catch(error => {
+  console.error('[AWGenerator] Failed to initialize regulatory database:', error);
+});
 
 /**
  * Abstracted PDF generation interface
@@ -85,26 +42,31 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
   const startTime = Date.now();
   
   try {
+    // Load market requirements from external database
+    const requirements = await getMarketRequirements(market);
+    
     // Verify regulatory requirements BEFORE generation
-    const verificationResult = verifyRegulatoryRequirements(sections, market);
+    const verificationResult = await verifyRegulatoryRequirements(sections, market, requirements);
     if (!verificationResult.valid) {
       const errorMsg = `Regulatory verification failed: ${verificationResult.errors.join(', ')}`;
-      logRegulatoryAudit({
+      await persistAuditLog({
         event: 'VERIFICATION_FAILED',
         market,
         productName,
         errors: verificationResult.errors,
-        sectionsProvided: sections.length
+        sectionsProvided: sections.length,
+        requirementsVersion: requirements.version
       });
       throw new Error(errorMsg);
     }
     
-    logRegulatoryAudit({
+    await persistAuditLog({
       event: 'VERIFICATION_PASSED',
       market,
       productName,
       mandatorySectionsFound: verificationResult.mandatorySectionsFound,
-      mandatorySectionsRequired: verificationResult.mandatorySectionsRequired
+      mandatorySectionsRequired: verificationResult.mandatorySectionsRequired,
+      requirementsVersion: requirements.version
     });
     
     // Load market-specific template
@@ -120,7 +82,7 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
     }
     
     // Prepare template data
-    const templateData = prepareTemplateData(sections, market, diecutSpec, productName);
+    const templateData = prepareTemplateData(sections, market, diecutSpec, productName, requirements);
     
     // Render HTML with template data
     const renderedHtml = renderTemplate(templateHtml, templateData);
@@ -136,29 +98,31 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
     const generationTimeMs = Date.now() - startTime;
     
     // Final verification: Ensure regulatory text is in generated PDF
-    const finalVerification = await verifyGeneratedPdf(pdfBuffer, market);
+    const finalVerification = await verifyGeneratedPdf(pdfBuffer, market, requirements);
     
     if (!finalVerification.valid) {
-      logRegulatoryAudit({
+      await persistAuditLog({
         event: 'FINAL_VERIFICATION_FAILED',
         market,
         productName,
         disclaimerFound: finalVerification.disclaimerFound,
         emergencyPhoneFound: finalVerification.emergencyPhoneFound,
         mandatorySectionsFound: finalVerification.mandatorySectionsFound,
-        mandatorySectionsRequired: finalVerification.mandatorySectionsRequired
+        mandatorySectionsRequired: finalVerification.mandatorySectionsRequired,
+        requirementsVersion: requirements.version
       });
       throw new Error(`Final PDF verification failed: ${finalVerification.missingItems.join(', ')}`);
     }
     
-    logRegulatoryAudit({
+    await persistAuditLog({
       event: 'PDF_GENERATED_SUCCESS',
       market,
       productName,
       generationTimeMs,
       sectionsProcessed: sections.length,
       diecutApplied: !!diecutSpec,
-      finalVerification: finalVerification
+      finalVerification: finalVerification,
+      requirementsVersion: requirements.version
     });
     
     // Log audit trail
@@ -169,6 +133,7 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
       regulatoryVerification: verificationResult,
       finalVerification,
       diecutApplied: !!diecutSpec,
+      requirementsVersion: requirements.version,
       timestamp: new Date().toISOString()
     });
     
@@ -180,7 +145,9 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
       auditTrail: {
         verificationPassed: true,
         finalVerificationPassed: true,
-        auditLogEntries: regulatoryAuditLog.slice(-5) // Last 5 entries for this generation
+        requirementsVersion: requirements.version,
+        requirementsLastUpdated: requirements.lastUpdated,
+        auditLogPersisted: true
       }
     };
   } catch (error) {
@@ -192,7 +159,7 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
       stack: error.stack
     });
     
-    logRegulatoryAudit({
+    await persistAuditLog({
       event: 'PDF_GENERATION_FAILED',
       market,
       productName,
@@ -208,15 +175,7 @@ export async function generateAWPdf({ sections, market, diecutSpec, productName,
  * Verify regulatory requirements before PDF generation
  * Ensures 100% accuracy for mandatory regulatory text
  */
-function verifyRegulatoryRequirements(sections, market) {
-  const requirements = REGULATORY_TEXT_REQUIREMENTS[market];
-  if (!requirements) {
-    return {
-      valid: false,
-      errors: [`Unknown market: ${market}`]
-    };
-  }
-  
+async function verifyRegulatoryRequirements(sections, market, requirements) {
   const errors = [];
   const warnings = [];
   
@@ -234,15 +193,14 @@ function verifyRegulatoryRequirements(sections, market) {
     }
   }
   
-  // Verify regulatory disclaimer will be included
-  const config = getMarketConfig(market);
-  if (config.regulatoryDisclaimer !== requirements.disclaimer) {
-    errors.push(`Regulatory disclaimer mismatch. Expected: "${requirements.disclaimer}", Got: "${config.regulatoryDisclaimer}"`);
+  // Verify regulatory disclaimer exists in requirements
+  if (!requirements.disclaimer) {
+    errors.push('Regulatory disclaimer not defined in requirements database');
   }
   
-  // Verify emergency contact
-  if (config.emergencyContact.phone !== requirements.emergencyPhone) {
-    warnings.push(`Emergency phone mismatch. Expected: "${requirements.emergencyPhone}", Got: "${config.emergencyContact.phone}"`);
+  // Verify emergency contact exists in requirements
+  if (!requirements.emergencyPhone) {
+    warnings.push('Emergency phone not defined in requirements database');
   }
   
   return {
@@ -253,7 +211,8 @@ function verifyRegulatoryRequirements(sections, market) {
     market,
     mandatorySectionsFound: requirements.mandatorySections.length - missingSections.length,
     mandatorySectionsRequired: requirements.mandatorySections.length,
-    missingSections
+    missingSections,
+    requirementsVersion: requirements.version
   };
 }
 
@@ -261,8 +220,7 @@ function verifyRegulatoryRequirements(sections, market) {
  * Verify generated PDF contains regulatory text
  * Final validation step for 100% accuracy guarantee
  */
-async function verifyGeneratedPdf(pdfBuffer, market) {
-  const requirements = REGULATORY_TEXT_REQUIREMENTS[market];
+async function verifyGeneratedPdf(pdfBuffer, market, requirements) {
   const missingItems = [];
   
   try {
@@ -305,7 +263,8 @@ async function verifyGeneratedPdf(pdfBuffer, market) {
       missingSections: missingSectionsInPdf,
       missingItems,
       verifiedAt: new Date().toISOString(),
-      verificationMethod: 'pdf-parse'
+      verificationMethod: 'pdf-parse',
+      requirementsVersion: requirements.version
     };
   } catch (error) {
     console.error('[AWGenerator] PDF verification failed:', error);
@@ -332,7 +291,8 @@ async function verifyGeneratedPdf(pdfBuffer, market) {
       missingItems,
       verifiedAt: new Date().toISOString(),
       verificationMethod: 'fallback',
-      verificationError: error.message
+      verificationError: error.message,
+      requirementsVersion: requirements.version
     };
   }
 }
@@ -340,9 +300,9 @@ async function verifyGeneratedPdf(pdfBuffer, market) {
 /**
  * Prepare data for template rendering
  */
-function prepareTemplateData(sections, market, diecutSpec, productName) {
-  // Get market-specific section ordering
-  const sectionOrder = getMarketSectionOrder(market);
+function prepareTemplateData(sections, market, diecutSpec, productName, requirements) {
+  // Get market-specific section ordering from requirements database
+  const sectionOrder = requirements.sectionOrdering || requirements.mandatorySections;
   
   // Reorder sections according to market requirements
   const orderedSections = [];
@@ -363,111 +323,39 @@ function prepareTemplateData(sections, market, diecutSpec, productName) {
     }
   }
   
-  // Get market-specific configuration
-  const config = getMarketConfig(market);
+  // Get market-specific configuration from requirements
+  const config = {
+    fontFamily: market === 'taiwan_tfda' ? 'Noto Sans TC, sans-serif' : 'Noto Sans Thai, sans-serif',
+    fontSize: {
+      productName: '14pt',
+      heading: '12pt',
+      body: '10pt'
+    },
+    lineHeight: 1.5,
+    regulatoryDisclaimer: requirements.disclaimer,
+    measurementUnits: {
+      dosage: 'mg/kg',
+      volume: 'mL'
+    },
+    emergencyContact: {
+      phone: requirements.emergencyPhone,
+      address: requirements.emergencyAddress,
+      hours: requirements.emergencyHours
+    },
+    paperDimensions: {
+      width: '210mm',
+      height: '297mm'
+    }
+  };
   
   return {
     productName,
     sections: orderedSections,
     config,
     diecutSpec,
-    generatedDate: new Date().toISOString().split('T')[0]
+    generatedDate: new Date().toISOString().split('T')[0],
+    requirementsVersion: requirements.version
   };
-}
-
-/**
- * Get market-specific section ordering
- */
-function getMarketSectionOrder(market) {
-  const orders = {
-    taiwan_tfda: [
-      'PRODUCT NAME',
-      'ACTIVE INGREDIENTS',
-      'INDICATIONS',
-      'DOSAGE AND ADMINISTRATION',
-      'CONTRAINDICATIONS',
-      'WARNINGS AND PRECAUTIONS',
-      'ADVERSE REACTIONS',
-      'DRUG INTERACTIONS',
-      'USE IN SPECIAL POPULATIONS',
-      'OVERDOSAGE',
-      'PHARMACOLOGY',
-      'STORAGE'
-    ],
-    thailand_fda: [
-      'PRODUCT NAME',
-      'ACTIVE INGREDIENTS',
-      'THERAPEUTIC INDICATIONS',
-      'POSOLOGY AND METHOD OF ADMINISTRATION',
-      'CONTRAINDICATIONS',
-      'SPECIAL WARNINGS AND PRECAUTIONS FOR USE',
-      'UNDESIRABLE EFFECTS',
-      'INTERACTION WITH OTHER MEDICINAL PRODUCTS',
-      'PREGNANCY AND LACTATION',
-      'OVERDOSE',
-      'PHARMACODYNAMIC PROPERTIES',
-      'PHARMACOKINETIC PROPERTIES',
-      'STORAGE CONDITIONS'
-    ]
-  };
-  
-  return orders[market] || orders.taiwan_tfda;
-}
-
-/**
- * Get market-specific configuration
- */
-function getMarketConfig(market) {
-  const configs = {
-    taiwan_tfda: {
-      fontFamily: 'Noto Sans TC, sans-serif',
-      fontSize: {
-        productName: '14pt',
-        heading: '12pt',
-        body: '10pt'
-      },
-      lineHeight: 1.5,
-      regulatoryDisclaimer: '本藥須由醫師處方使用',
-      measurementUnits: {
-        dosage: 'mg/kg',
-        volume: 'mL'
-      },
-      emergencyContact: {
-        phone: '+886-2-1234-5678',
-        address: '台北市信義區',
-        hours: '09:00-18:00'
-      },
-      paperDimensions: {
-        width: '210mm',
-        height: '297mm'
-      }
-    },
-    thailand_fda: {
-      fontFamily: 'Noto Sans Thai, sans-serif',
-      fontSize: {
-        productName: '14pt',
-        heading: '12pt',
-        body: '10pt'
-      },
-      lineHeight: 1.5,
-      regulatoryDisclaimer: 'ยานี้ต้องใช้ตามใบสั่งแพทย์',
-      measurementUnits: {
-        dosage: 'mg/kg',
-        volume: 'mL'
-      },
-      emergencyContact: {
-        phone: '+66-2-123-4567',
-        address: 'Bangkok',
-        hours: '09:00-17:00'
-      },
-      paperDimensions: {
-        width: '210mm',
-        height: '297mm'
-      }
-    }
-  };
-  
-  return configs[market] || configs.taiwan_tfda;
 }
 
 /**
@@ -676,9 +564,8 @@ async function generatePdfWithPuppeteer(html, market, diecutSpec) {
     });
     
     // Get page dimensions
-    const config = getMarketConfig(market);
-    let width = config.paperDimensions.width;
-    let height = config.paperDimensions.height;
+    let width = '210mm';
+    let height = '297mm';
     
     if (diecutSpec) {
       width = `${diecutSpec.widthMm}mm`;
@@ -722,13 +609,6 @@ export async function cleanup() {
     }
     browserInstance = null;
   }
-}
-
-/**
- * Get regulatory audit log (for debugging/compliance)
- */
-export function getRegulatoryAuditLog() {
-  return [...regulatoryAuditLog];
 }
 
 // Handle process termination

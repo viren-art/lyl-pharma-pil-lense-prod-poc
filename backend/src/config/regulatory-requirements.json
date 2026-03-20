@@ -1,0 +1,84 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-01-15T00:00:00.000Z",
+  "changeHistory": [
+    {
+      "version": "1.0.0",
+      "timestamp": "2024-01-15T00:00:00.000Z",
+      "reason": "Initial database creation",
+      "changes": {}
+    }
+  ],
+  "markets": {
+    "taiwan_tfda": {
+      "disclaimer": "本藥須由醫師處方使用",
+      "emergencyPhone": "+886-2-1234-5678",
+      "emergencyAddress": "台北市信義區",
+      "emergencyHours": "09:00-18:00",
+      "mandatorySections": [
+        "PRODUCT NAME",
+        "ACTIVE INGREDIENTS",
+        "INDICATIONS",
+        "DOSAGE AND ADMINISTRATION",
+        "CONTRAINDICATIONS",
+        "WARNINGS AND PRECAUTIONS",
+        "ADVERSE REACTIONS",
+        "DRUG INTERACTIONS",
+        "USE IN SPECIAL POPULATIONS",
+        "OVERDOSAGE",
+        "PHARMACOLOGY",
+        "STORAGE"
+      ],
+      "sectionOrdering": [
+        "PRODUCT NAME",
+        "ACTIVE INGREDIENTS",
+        "INDICATIONS",
+        "DOSAGE AND ADMINISTRATION",
+        "CONTRAINDICATIONS",
+        "WARNINGS AND PRECAUTIONS",
+        "ADVERSE REACTIONS",
+        "DRUG INTERACTIONS",
+        "USE IN SPECIAL POPULATIONS",
+        "OVERDOSAGE",
+        "PHARMACOLOGY",
+        "STORAGE"
+      ]
+    },
+    "thailand_fda": {
+      "disclaimer": "ยานี้ต้องใช้ตามใบสั่งแพทย์",
+      "emergencyPhone": "+66-2-123-4567",
+      "emergencyAddress": "Bangkok",
+      "emergencyHours": "09:00-17:00",
+      "mandatorySections": [
+        "PRODUCT NAME",
+        "ACTIVE INGREDIENTS",
+        "THERAPEUTIC INDICATIONS",
+        "POSOLOGY AND METHOD OF ADMINISTRATION",
+        "CONTRAINDICATIONS",
+        "SPECIAL WARNINGS AND PRECAUTIONS FOR USE",
+        "UNDESIRABLE EFFECTS",
+        "INTERACTION WITH OTHER MEDICINAL PRODUCTS",
+        "PREGNANCY AND LACTATION",
+        "OVERDOSE",
+        "PHARMACODYNAMIC PROPERTIES",
+        "PHARMACOKINETIC PROPERTIES",
+        "STORAGE CONDITIONS"
+      ],
+      "sectionOrdering": [
+        "PRODUCT NAME",
+        "ACTIVE INGREDIENTS",
+        "THERAPEUTIC INDICATIONS",
+        "POSOLOGY AND METHOD OF ADMINISTRATION",
+        "CONTRAINDICATIONS",
+        "SPECIAL WARNINGS AND PRECAUTIONS FOR USE",
+        "UNDESIRABLE EFFECTS",
+        "INTERACTION WITH OTHER MEDICINAL PRODUCTS",
+        "PREGNANCY AND LACTATION",
+        "OVERDOSE",
+        "PHARMACODYNAMIC PROPERTIES",
+        "PHARMACOKINETIC PROPERTIES",
+        "STORAGE CONDITIONS"
+      ]
+    }
+  }
+}
