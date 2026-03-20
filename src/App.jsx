@@ -1,24 +1,115 @@
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-
-// LYL: Page imports will be injected here by Build Agent
-// SCAFFOLD_PAGES_START
-const Home = lazy(() => import('./pages/Home'));
-const SessionInfo = lazy(() => import('./pages/SessionInfo'));
-// SCAFFOLD_PAGES_END
+import { useState } from 'react'
+import { Routes, Route, Link } from 'react-router-dom'
+import Page0 from './pages/F1'
+import Page1 from './pages/F1'
+import Page2 from './pages/F2'
+import Page3 from './pages/F2'
+import Page4 from './pages/F3'
+import Page5 from './pages/F3'
+import Page6 from './pages/F3'
+import Page7 from './pages/F4'
+import Page8 from './pages/F5'
+import Page9 from './pages/F5'
+import Page10 from './pages/F5'
+import Page11 from './pages/F6'
+import Page12 from './pages/F6'
+import Page13 from './pages/F6'
+import Page14 from './pages/F7'
+import Page15 from './pages/F7'
+import Page16 from './pages/F7'
+import Page17 from './pages/F7'
+import Page18 from './pages/F8'
+import Page19 from './pages/_deploy_spec'
 
 export default function App() {
+  const [navOpen, setNavOpen] = useState(false)
+
   return (
-    <BrowserRouter>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+    <div className="min-h-screen bg-zinc-950">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-zinc-900/80 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-bold text-white">PIL Lens — Pharmaceutical document intelligence for PIL l...</span>
+          <button
+            onClick={() => setNavOpen(!navOpen)}
+            className="md:hidden p-2 text-zinc-400 hover:text-white"
+          >
+            {navOpen ? '✕' : '☰'}
+          </button>
+          <div className="hidden md:flex items-center gap-1">
+          <Link to="/" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Document Upload & Library…</Link>
+          <Link to="/f1" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Document Upload & Library…</Link>
+          <Link to="/f2" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">GCP Cloud Run Deployment …</Link>
+          <Link to="/f2" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">GCP Cloud Run Deployment …</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f4" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Create PIL Draft Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f8" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Workflow Results Display …</Link>
+          <Link to="/_deploy_spec" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Deploy Spec</Link>
+          </div>
+        </div>
+        {navOpen && (
+          <div className="md:hidden px-4 pb-3 flex flex-col gap-1">
+          <Link to="/" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Document Upload & Library…</Link>
+          <Link to="/f1" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Document Upload & Library…</Link>
+          <Link to="/f2" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">GCP Cloud Run Deployment …</Link>
+          <Link to="/f2" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">GCP Cloud Run Deployment …</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f3" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Two-Stage Document Extrac…</Link>
+          <Link to="/f4" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Create PIL Draft Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f5" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Assess Variation Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f6" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Review AW Workflow</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f7" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Generate AW Draft Workflo…</Link>
+          <Link to="/f8" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Workflow Results Display …</Link>
+          <Link to="/_deploy_spec" className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors text-zinc-300 hover:text-white">Deploy Spec</Link>
+          </div>
+        )}
+      </nav>
+
+      {/* Pages */}
+      <main>
         <Routes>
-          {/* LYL: Routes will be injected here by Build Agent */}
-          {/* SCAFFOLD_ROUTES_START */}
-          <Route path="/" element={<Home />} />
-          <Route path="/sessioninfo" element={<SessionInfo />} />
-          {/* SCAFFOLD_ROUTES_END */}
+        <Route path="/" element={<Page0 />} />
+        <Route path="/f1" element={<Page1 />} />
+        <Route path="/f2" element={<Page2 />} />
+        <Route path="/f2" element={<Page3 />} />
+        <Route path="/f3" element={<Page4 />} />
+        <Route path="/f3" element={<Page5 />} />
+        <Route path="/f3" element={<Page6 />} />
+        <Route path="/f4" element={<Page7 />} />
+        <Route path="/f5" element={<Page8 />} />
+        <Route path="/f5" element={<Page9 />} />
+        <Route path="/f5" element={<Page10 />} />
+        <Route path="/f6" element={<Page11 />} />
+        <Route path="/f6" element={<Page12 />} />
+        <Route path="/f6" element={<Page13 />} />
+        <Route path="/f7" element={<Page14 />} />
+        <Route path="/f7" element={<Page15 />} />
+        <Route path="/f7" element={<Page16 />} />
+        <Route path="/f7" element={<Page17 />} />
+        <Route path="/f8" element={<Page18 />} />
+        <Route path="/_deploy_spec" element={<Page19 />} />
         </Routes>
-      </Suspense>
-    </BrowserRouter>
-  );
+      </main>
+    </div>
+  )
 }
