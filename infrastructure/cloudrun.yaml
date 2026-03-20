@@ -1,0 +1,86 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: pil-lens
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '10'
+        run.googleapis.com/cpu-throttling: 'false'
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: pil-lens-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+      - name: pil-lens-app
+        image: asia-southeast1-docker.pkg.dev/PROJECT_ID/pil-lens/app:latest
+        ports:
+        - name: http1
+          containerPort: 8080
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: PORT
+          value: '8080'
+        - name: MAX_DOCUMENTS_PER_SESSION
+          value: '100'
+        - name: MAX_FILE_SIZE_MB
+          value: '25'
+        - name: EXTRACTION_PROVIDER
+          value: google_docai
+        - name: GOOGLE_DOCAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: google-docai-api-key
+              key: latest
+        - name: CLAUDE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: claude-api-key
+              key: latest
+        - name: GCP_PROJECT_ID
+          value: PROJECT_ID
+        - name: GCP_REGION
+          value: asia-southeast1
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 12
+  traffic:
+  - percent: 100
+    latestRevision: true
