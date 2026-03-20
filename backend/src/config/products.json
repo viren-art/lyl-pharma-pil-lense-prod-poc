@@ -1,0 +1,1504 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Zenora (Abiraterone Acetate) 250mg",
+      "activeIngredient": "Abiraterone Acetate",
+      "strength": "250mg"
+    },
+    {
+      "id": 2,
+      "name": "Lenalidomide 25mg",
+      "activeIngredient": "Lenalidomide",
+      "strength": "25mg"
+    },
+    {
+      "id": 3,
+      "name": "Ibrutinib 140mg",
+      "activeIngredient": "Ibrutinib",
+      "strength": "140mg"
+    },
+    {
+      "id": 4,
+      "name": "Pomalidomide 4mg",
+      "activeIngredient": "Pomalidomide",
+      "strength": "4mg"
+    },
+    {
+      "id": 5,
+      "name": "Carfilzomib 60mg",
+      "activeIngredient": "Carfilzomib",
+      "strength": "60mg"
+    },
+    {
+      "id": 6,
+      "name": "Bortezomib 3.5mg",
+      "activeIngredient": "Bortezomib",
+      "strength": "3.5mg"
+    },
+    {
+      "id": 7,
+      "name": "Daratumumab 100mg/5mL",
+      "activeIngredient": "Daratumumab",
+      "strength": "100mg/5mL"
+    },
+    {
+      "id": 8,
+      "name": "Eltrombopag 25mg",
+      "activeIngredient": "Eltrombopag",
+      "strength": "25mg"
+    },
+    {
+      "id": 9,
+      "name": "Eltrombopag 50mg",
+      "activeIngredient": "Eltrombopag",
+      "strength": "50mg"
+    },
+    {
+      "id": 10,
+      "name": "Romiplostim 250mcg",
+      "activeIngredient": "Romiplostim",
+      "strength": "250mcg"
+    },
+    {
+      "id": 11,
+      "name": "Avatrombopag 20mg",
+      "activeIngredient": "Avatrombopag",
+      "strength": "20mg"
+    },
+    {
+      "id": 12,
+      "name": "Luspatercept 25mg",
+      "activeIngredient": "Luspatercept",
+      "strength": "25mg"
+    },
+    {
+      "id": 13,
+      "name": "Luspatercept 75mg",
+      "activeIngredient": "Luspatercept",
+      "strength": "75mg"
+    },
+    {
+      "id": 14,
+      "name": "Ruxolitinib 5mg",
+      "activeIngredient": "Ruxolitinib",
+      "strength": "5mg"
+    },
+    {
+      "id": 15,
+      "name": "Ruxolitinib 15mg",
+      "activeIngredient": "Ruxolitinib",
+      "strength": "15mg"
+    },
+    {
+      "id": 16,
+      "name": "Ruxolitinib 20mg",
+      "activeIngredient": "Ruxolitinib",
+      "strength": "20mg"
+    },
+    {
+      "id": 17,
+      "name": "Fedratinib 100mg",
+      "activeIngredient": "Fedratinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 18,
+      "name": "Pacritinib 100mg",
+      "activeIngredient": "Pacritinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 19,
+      "name": "Venetoclax 10mg",
+      "activeIngredient": "Venetoclax",
+      "strength": "10mg"
+    },
+    {
+      "id": 20,
+      "name": "Venetoclax 50mg",
+      "activeIngredient": "Venetoclax",
+      "strength": "50mg"
+    },
+    {
+      "id": 21,
+      "name": "Venetoclax 100mg",
+      "activeIngredient": "Venetoclax",
+      "strength": "100mg"
+    },
+    {
+      "id": 22,
+      "name": "Acalabrutinib 100mg",
+      "activeIngredient": "Acalabrutinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 23,
+      "name": "Zanubrutinib 80mg",
+      "activeIngredient": "Zanubrutinib",
+      "strength": "80mg"
+    },
+    {
+      "id": 24,
+      "name": "Pirtobrutinib 200mg",
+      "activeIngredient": "Pirtobrutinib",
+      "strength": "200mg"
+    },
+    {
+      "id": 25,
+      "name": "Idelalisib 100mg",
+      "activeIngredient": "Idelalisib",
+      "strength": "100mg"
+    },
+    {
+      "id": 26,
+      "name": "Idelalisib 150mg",
+      "activeIngredient": "Idelalisib",
+      "strength": "150mg"
+    },
+    {
+      "id": 27,
+      "name": "Duvelisib 15mg",
+      "activeIngredient": "Duvelisib",
+      "strength": "15mg"
+    },
+    {
+      "id": 28,
+      "name": "Duvelisib 25mg",
+      "activeIngredient": "Duvelisib",
+      "strength": "25mg"
+    },
+    {
+      "id": 29,
+      "name": "Copanlisib 60mg",
+      "activeIngredient": "Copanlisib",
+      "strength": "60mg"
+    },
+    {
+      "id": 30,
+      "name": "Umbralisib 200mg",
+      "activeIngredient": "Umbralisib",
+      "strength": "200mg"
+    },
+    {
+      "id": 31,
+      "name": "Tafasitamab 200mg",
+      "activeIngredient": "Tafasitamab",
+      "strength": "200mg"
+    },
+    {
+      "id": 32,
+      "name": "Polatuzumab Vedotin 30mg",
+      "activeIngredient": "Polatuzumab Vedotin",
+      "strength": "30mg"
+    },
+    {
+      "id": 33,
+      "name": "Polatuzumab Vedotin 140mg",
+      "activeIngredient": "Polatuzumab Vedotin",
+      "strength": "140mg"
+    },
+    {
+      "id": 34,
+      "name": "Loncastuximab Tesirine 10mg",
+      "activeIngredient": "Loncastuximab Tesirine",
+      "strength": "10mg"
+    },
+    {
+      "id": 35,
+      "name": "Selinexor 20mg",
+      "activeIngredient": "Selinexor",
+      "strength": "20mg"
+    },
+    {
+      "id": 36,
+      "name": "Belantamab Mafodotin 100mg",
+      "activeIngredient": "Belantamab Mafodotin",
+      "strength": "100mg"
+    },
+    {
+      "id": 37,
+      "name": "Isatuximab 100mg/5mL",
+      "activeIngredient": "Isatuximab",
+      "strength": "100mg/5mL"
+    },
+    {
+      "id": 38,
+      "name": "Isatuximab 500mg/25mL",
+      "activeIngredient": "Isatuximab",
+      "strength": "500mg/25mL"
+    },
+    {
+      "id": 39,
+      "name": "Elotuzumab 300mg",
+      "activeIngredient": "Elotuzumab",
+      "strength": "300mg"
+    },
+    {
+      "id": 40,
+      "name": "Elotuzumab 400mg",
+      "activeIngredient": "Elotuzumab",
+      "strength": "400mg"
+    },
+    {
+      "id": 41,
+      "name": "Panobinostat 10mg",
+      "activeIngredient": "Panobinostat",
+      "strength": "10mg"
+    },
+    {
+      "id": 42,
+      "name": "Panobinostat 15mg",
+      "activeIngredient": "Panobinostat",
+      "strength": "15mg"
+    },
+    {
+      "id": 43,
+      "name": "Panobinostat 20mg",
+      "activeIngredient": "Panobinostat",
+      "strength": "20mg"
+    },
+    {
+      "id": 44,
+      "name": "Ixazomib 2.3mg",
+      "activeIngredient": "Ixazomib",
+      "strength": "2.3mg"
+    },
+    {
+      "id": 45,
+      "name": "Ixazomib 3mg",
+      "activeIngredient": "Ixazomib",
+      "strength": "3mg"
+    },
+    {
+      "id": 46,
+      "name": "Ixazomib 4mg",
+      "activeIngredient": "Ixazomib",
+      "strength": "4mg"
+    },
+    {
+      "id": 47,
+      "name": "Teclistamab 30mg/1.5mL",
+      "activeIngredient": "Teclistamab",
+      "strength": "30mg/1.5mL"
+    },
+    {
+      "id": 48,
+      "name": "Teclistamab 153mg/1.7mL",
+      "activeIngredient": "Teclistamab",
+      "strength": "153mg/1.7mL"
+    },
+    {
+      "id": 49,
+      "name": "Talquetamab 40mg/0.8mL",
+      "activeIngredient": "Talquetamab",
+      "strength": "40mg/0.8mL"
+    },
+    {
+      "id": 50,
+      "name": "Ciltacabtagene Autoleucel 3.2-10.2×10^6 CAR+ cells",
+      "activeIngredient": "Ciltacabtagene Autoleucel",
+      "strength": "3.2-10.2×10^6 CAR+ cells"
+    },
+    {
+      "id": 51,
+      "name": "Idecabtagene Vicleucel 150-450×10^6 CAR+ T cells",
+      "activeIngredient": "Idecabtagene Vicleucel",
+      "strength": "150-450×10^6 CAR+ T cells"
+    },
+    {
+      "id": 52,
+      "name": "Tisagenlecleucel 0.6-6.0×10^8 CAR+ T cells",
+      "activeIngredient": "Tisagenlecleucel",
+      "strength": "0.6-6.0×10^8 CAR+ T cells"
+    },
+    {
+      "id": 53,
+      "name": "Axicabtagene Ciloleucel 2×10^6 CAR+ T cells/kg",
+      "activeIngredient": "Axicabtagene Ciloleucel",
+      "strength": "2×10^6 CAR+ T cells/kg"
+    },
+    {
+      "id": 54,
+      "name": "Brexucabtagene Autoleucel 2×10^6 CAR+ T cells/kg",
+      "activeIngredient": "Brexucabtagene Autoleucel",
+      "strength": "2×10^6 CAR+ T cells/kg"
+    },
+    {
+      "id": 55,
+      "name": "Lisocabtagene Maraleucel 50-110×10^6 CAR+ T cells",
+      "activeIngredient": "Lisocabtagene Maraleucel",
+      "strength": "50-110×10^6 CAR+ T cells"
+    },
+    {
+      "id": 56,
+      "name": "Glofitamab 2.5mg/2.5mL",
+      "activeIngredient": "Glofitamab",
+      "strength": "2.5mg/2.5mL"
+    },
+    {
+      "id": 57,
+      "name": "Glofitamab 10mg/10mL",
+      "activeIngredient": "Glofitamab",
+      "strength": "10mg/10mL"
+    },
+    {
+      "id": 58,
+      "name": "Mosunetuzumab 1mg/1mL",
+      "activeIngredient": "Mosunetuzumab",
+      "strength": "1mg/1mL"
+    },
+    {
+      "id": 59,
+      "name": "Mosunetuzumab 30mg/30mL",
+      "activeIngredient": "Mosunetuzumab",
+      "strength": "30mg/30mL"
+    },
+    {
+      "id": 60,
+      "name": "Epcoritamab 0.16mg/0.08mL",
+      "activeIngredient": "Epcoritamab",
+      "strength": "0.16mg/0.08mL"
+    },
+    {
+      "id": 61,
+      "name": "Epcoritamab 48mg/0.8mL",
+      "activeIngredient": "Epcoritamab",
+      "strength": "48mg/0.8mL"
+    },
+    {
+      "id": 62,
+      "name": "Odronextamab 80mg/4mL",
+      "activeIngredient": "Odronextamab",
+      "strength": "80mg/4mL"
+    },
+    {
+      "id": 63,
+      "name": "Tafasitamab 200mg/10mL",
+      "activeIngredient": "Tafasitamab",
+      "strength": "200mg/10mL"
+    },
+    {
+      "id": 64,
+      "name": "Rituximab 100mg/10mL",
+      "activeIngredient": "Rituximab",
+      "strength": "100mg/10mL"
+    },
+    {
+      "id": 65,
+      "name": "Rituximab 500mg/50mL",
+      "activeIngredient": "Rituximab",
+      "strength": "500mg/50mL"
+    },
+    {
+      "id": 66,
+      "name": "Obinutuzumab 1000mg/40mL",
+      "activeIngredient": "Obinutuzumab",
+      "strength": "1000mg/40mL"
+    },
+    {
+      "id": 67,
+      "name": "Ofatumumab 20mg/0.4mL",
+      "activeIngredient": "Ofatumumab",
+      "strength": "20mg/0.4mL"
+    },
+    {
+      "id": 68,
+      "name": "Inotuzumab Ozogamicin 0.9mg",
+      "activeIngredient": "Inotuzumab Ozogamicin",
+      "strength": "0.9mg"
+    },
+    {
+      "id": 69,
+      "name": "Blinatumomab 35mcg",
+      "activeIngredient": "Blinatumomab",
+      "strength": "35mcg"
+    },
+    {
+      "id": 70,
+      "name": "Mogamulizumab 20mg/5mL",
+      "activeIngredient": "Mogamulizumab",
+      "strength": "20mg/5mL"
+    },
+    {
+      "id": 71,
+      "name": "Brentuximab Vedotin 50mg",
+      "activeIngredient": "Brentuximab Vedotin",
+      "strength": "50mg"
+    },
+    {
+      "id": 72,
+      "name": "Pembrolizumab 100mg/4mL",
+      "activeIngredient": "Pembrolizumab",
+      "strength": "100mg/4mL"
+    },
+    {
+      "id": 73,
+      "name": "Nivolumab 40mg/4mL",
+      "activeIngredient": "Nivolumab",
+      "strength": "40mg/4mL"
+    },
+    {
+      "id": 74,
+      "name": "Nivolumab 100mg/10mL",
+      "activeIngredient": "Nivolumab",
+      "strength": "100mg/10mL"
+    },
+    {
+      "id": 75,
+      "name": "Atezolizumab 840mg/14mL",
+      "activeIngredient": "Atezolizumab",
+      "strength": "840mg/14mL"
+    },
+    {
+      "id": 76,
+      "name": "Atezolizumab 1200mg/20mL",
+      "activeIngredient": "Atezolizumab",
+      "strength": "1200mg/20mL"
+    },
+    {
+      "id": 77,
+      "name": "Durvalumab 120mg/2.4mL",
+      "activeIngredient": "Durvalumab",
+      "strength": "120mg/2.4mL"
+    },
+    {
+      "id": 78,
+      "name": "Durvalumab 500mg/10mL",
+      "activeIngredient": "Durvalumab",
+      "strength": "500mg/10mL"
+    },
+    {
+      "id": 79,
+      "name": "Avelumab 200mg/10mL",
+      "activeIngredient": "Avelumab",
+      "strength": "200mg/10mL"
+    },
+    {
+      "id": 80,
+      "name": "Cemiplimab 350mg/7mL",
+      "activeIngredient": "Cemiplimab",
+      "strength": "350mg/7mL"
+    },
+    {
+      "id": 81,
+      "name": "Dostarlimab 500mg/10mL",
+      "activeIngredient": "Dostarlimab",
+      "strength": "500mg/10mL"
+    },
+    {
+      "id": 82,
+      "name": "Toripalimab 240mg/6mL",
+      "activeIngredient": "Toripalimab",
+      "strength": "240mg/6mL"
+    },
+    {
+      "id": 83,
+      "name": "Sintilimab 100mg/10mL",
+      "activeIngredient": "Sintilimab",
+      "strength": "100mg/10mL"
+    },
+    {
+      "id": 84,
+      "name": "Tislelizumab 100mg/10mL",
+      "activeIngredient": "Tislelizumab",
+      "strength": "100mg/10mL"
+    },
+    {
+      "id": 85,
+      "name": "Camrelizumab 200mg/10mL",
+      "activeIngredient": "Camrelizumab",
+      "strength": "200mg/10mL"
+    },
+    {
+      "id": 86,
+      "name": "Pralsetinib 100mg",
+      "activeIngredient": "Pralsetinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 87,
+      "name": "Selpercatinib 40mg",
+      "activeIngredient": "Selpercatinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 88,
+      "name": "Selpercatinib 80mg",
+      "activeIngredient": "Selpercatinib",
+      "strength": "80mg"
+    },
+    {
+      "id": 89,
+      "name": "Larotrectinib 25mg",
+      "activeIngredient": "Larotrectinib",
+      "strength": "25mg"
+    },
+    {
+      "id": 90,
+      "name": "Larotrectinib 100mg",
+      "activeIngredient": "Larotrectinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 91,
+      "name": "Entrectinib 100mg",
+      "activeIngredient": "Entrectinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 92,
+      "name": "Entrectinib 200mg",
+      "activeIngredient": "Entrectinib",
+      "strength": "200mg"
+    },
+    {
+      "id": 93,
+      "name": "Capmatinib 150mg",
+      "activeIngredient": "Capmatinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 94,
+      "name": "Capmatinib 200mg",
+      "activeIngredient": "Capmatinib",
+      "strength": "200mg"
+    },
+    {
+      "id": 95,
+      "name": "Tepotinib 250mg",
+      "activeIngredient": "Tepotinib",
+      "strength": "250mg"
+    },
+    {
+      "id": 96,
+      "name": "Osimertinib 40mg",
+      "activeIngredient": "Osimertinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 97,
+      "name": "Osimertinib 80mg",
+      "activeIngredient": "Osimertinib",
+      "strength": "80mg"
+    },
+    {
+      "id": 98,
+      "name": "Dacomitinib 15mg",
+      "activeIngredient": "Dacomitinib",
+      "strength": "15mg"
+    },
+    {
+      "id": 99,
+      "name": "Dacomitinib 30mg",
+      "activeIngredient": "Dacomitinib",
+      "strength": "30mg"
+    },
+    {
+      "id": 100,
+      "name": "Dacomitinib 45mg",
+      "activeIngredient": "Dacomitinib",
+      "strength": "45mg"
+    },
+    {
+      "id": 101,
+      "name": "Afatinib 20mg",
+      "activeIngredient": "Afatinib",
+      "strength": "20mg"
+    },
+    {
+      "id": 102,
+      "name": "Afatinib 30mg",
+      "activeIngredient": "Afatinib",
+      "strength": "30mg"
+    },
+    {
+      "id": 103,
+      "name": "Afatinib 40mg",
+      "activeIngredient": "Afatinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 104,
+      "name": "Erlotinib 25mg",
+      "activeIngredient": "Erlotinib",
+      "strength": "25mg"
+    },
+    {
+      "id": 105,
+      "name": "Erlotinib 100mg",
+      "activeIngredient": "Erlotinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 106,
+      "name": "Erlotinib 150mg",
+      "activeIngredient": "Erlotinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 107,
+      "name": "Gefitinib 250mg",
+      "activeIngredient": "Gefitinib",
+      "strength": "250mg"
+    },
+    {
+      "id": 108,
+      "name": "Alectinib 150mg",
+      "activeIngredient": "Alectinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 109,
+      "name": "Ceritinib 150mg",
+      "activeIngredient": "Ceritinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 110,
+      "name": "Crizotinib 200mg",
+      "activeIngredient": "Crizotinib",
+      "strength": "200mg"
+    },
+    {
+      "id": 111,
+      "name": "Crizotinib 250mg",
+      "activeIngredient": "Crizotinib",
+      "strength": "250mg"
+    },
+    {
+      "id": 112,
+      "name": "Brigatinib 30mg",
+      "activeIngredient": "Brigatinib",
+      "strength": "30mg"
+    },
+    {
+      "id": 113,
+      "name": "Brigatinib 90mg",
+      "activeIngredient": "Brigatinib",
+      "strength": "90mg"
+    },
+    {
+      "id": 114,
+      "name": "Brigatinib 180mg",
+      "activeIngredient": "Brigatinib",
+      "strength": "180mg"
+    },
+    {
+      "id": 115,
+      "name": "Lorlatinib 25mg",
+      "activeIngredient": "Lorlatinib",
+      "strength": "25mg"
+    },
+    {
+      "id": 116,
+      "name": "Lorlatinib 100mg",
+      "activeIngredient": "Lorlatinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 117,
+      "name": "Dabrafenib 50mg",
+      "activeIngredient": "Dabrafenib",
+      "strength": "50mg"
+    },
+    {
+      "id": 118,
+      "name": "Dabrafenib 75mg",
+      "activeIngredient": "Dabrafenib",
+      "strength": "75mg"
+    },
+    {
+      "id": 119,
+      "name": "Trametinib 0.5mg",
+      "activeIngredient": "Trametinib",
+      "strength": "0.5mg"
+    },
+    {
+      "id": 120,
+      "name": "Trametinib 2mg",
+      "activeIngredient": "Trametinib",
+      "strength": "2mg"
+    },
+    {
+      "id": 121,
+      "name": "Vemurafenib 240mg",
+      "activeIngredient": "Vemurafenib",
+      "strength": "240mg"
+    },
+    {
+      "id": 122,
+      "name": "Cobimetinib 20mg",
+      "activeIngredient": "Cobimetinib",
+      "strength": "20mg"
+    },
+    {
+      "id": 123,
+      "name": "Encorafenib 50mg",
+      "activeIngredient": "Encorafenib",
+      "strength": "50mg"
+    },
+    {
+      "id": 124,
+      "name": "Encorafenib 75mg",
+      "activeIngredient": "Encorafenib",
+      "strength": "75mg"
+    },
+    {
+      "id": 125,
+      "name": "Binimetinib 15mg",
+      "activeIngredient": "Binimetinib",
+      "strength": "15mg"
+    },
+    {
+      "id": 126,
+      "name": "Olaparib 100mg",
+      "activeIngredient": "Olaparib",
+      "strength": "100mg"
+    },
+    {
+      "id": 127,
+      "name": "Olaparib 150mg",
+      "activeIngredient": "Olaparib",
+      "strength": "150mg"
+    },
+    {
+      "id": 128,
+      "name": "Rucaparib 200mg",
+      "activeIngredient": "Rucaparib",
+      "strength": "200mg"
+    },
+    {
+      "id": 129,
+      "name": "Rucaparib 250mg",
+      "activeIngredient": "Rucaparib",
+      "strength": "250mg"
+    },
+    {
+      "id": 130,
+      "name": "Rucaparib 300mg",
+      "activeIngredient": "Rucaparib",
+      "strength": "300mg"
+    },
+    {
+      "id": 131,
+      "name": "Niraparib 100mg",
+      "activeIngredient": "Niraparib",
+      "strength": "100mg"
+    },
+    {
+      "id": 132,
+      "name": "Talazoparib 0.25mg",
+      "activeIngredient": "Talazoparib",
+      "strength": "0.25mg"
+    },
+    {
+      "id": 133,
+      "name": "Talazoparib 1mg",
+      "activeIngredient": "Talazoparib",
+      "strength": "1mg"
+    },
+    {
+      "id": 134,
+      "name": "Palbociclib 75mg",
+      "activeIngredient": "Palbociclib",
+      "strength": "75mg"
+    },
+    {
+      "id": 135,
+      "name": "Palbociclib 100mg",
+      "activeIngredient": "Palbociclib",
+      "strength": "100mg"
+    },
+    {
+      "id": 136,
+      "name": "Palbociclib 125mg",
+      "activeIngredient": "Palbociclib",
+      "strength": "125mg"
+    },
+    {
+      "id": 137,
+      "name": "Ribociclib 200mg",
+      "activeIngredient": "Ribociclib",
+      "strength": "200mg"
+    },
+    {
+      "id": 138,
+      "name": "Ribociclib 400mg",
+      "activeIngredient": "Ribociclib",
+      "strength": "400mg"
+    },
+    {
+      "id": 139,
+      "name": "Ribociclib 600mg",
+      "activeIngredient": "Ribociclib",
+      "strength": "600mg"
+    },
+    {
+      "id": 140,
+      "name": "Abemaciclib 50mg",
+      "activeIngredient": "Abemaciclib",
+      "strength": "50mg"
+    },
+    {
+      "id": 141,
+      "name": "Abemaciclib 100mg",
+      "activeIngredient": "Abemaciclib",
+      "strength": "100mg"
+    },
+    {
+      "id": 142,
+      "name": "Abemaciclib 150mg",
+      "activeIngredient": "Abemaciclib",
+      "strength": "150mg"
+    },
+    {
+      "id": 143,
+      "name": "Abemaciclib 200mg",
+      "activeIngredient": "Abemaciclib",
+      "strength": "200mg"
+    },
+    {
+      "id": 144,
+      "name": "Alpelisib 50mg",
+      "activeIngredient": "Alpelisib",
+      "strength": "50mg"
+    },
+    {
+      "id": 145,
+      "name": "Alpelisib 150mg",
+      "activeIngredient": "Alpelisib",
+      "strength": "150mg"
+    },
+    {
+      "id": 146,
+      "name": "Alpelisib 200mg",
+      "activeIngredient": "Alpelisib",
+      "strength": "200mg"
+    },
+    {
+      "id": 147,
+      "name": "Everolimus 2.5mg",
+      "activeIngredient": "Everolimus",
+      "strength": "2.5mg"
+    },
+    {
+      "id": 148,
+      "name": "Everolimus 5mg",
+      "activeIngredient": "Everolimus",
+      "strength": "5mg"
+    },
+    {
+      "id": 149,
+      "name": "Everolimus 10mg",
+      "activeIngredient": "Everolimus",
+      "strength": "10mg"
+    },
+    {
+      "id": 150,
+      "name": "Temsirolimus 25mg/1mL",
+      "activeIngredient": "Temsirolimus",
+      "strength": "25mg/1mL"
+    },
+    {
+      "id": 151,
+      "name": "Bevacizumab 100mg/4mL",
+      "activeIngredient": "Bevacizumab",
+      "strength": "100mg/4mL"
+    },
+    {
+      "id": 152,
+      "name": "Bevacizumab 400mg/16mL",
+      "activeIngredient": "Bevacizumab",
+      "strength": "400mg/16mL"
+    },
+    {
+      "id": 153,
+      "name": "Ramucirumab 100mg/10mL",
+      "activeIngredient": "Ramucirumab",
+      "strength": "100mg/10mL"
+    },
+    {
+      "id": 154,
+      "name": "Ramucirumab 500mg/50mL",
+      "activeIngredient": "Ramucirumab",
+      "strength": "500mg/50mL"
+    },
+    {
+      "id": 155,
+      "name": "Aflibercept 100mg/4mL",
+      "activeIngredient": "Aflibercept",
+      "strength": "100mg/4mL"
+    },
+    {
+      "id": 156,
+      "name": "Aflibercept 200mg/8mL",
+      "activeIngredient": "Aflibercept",
+      "strength": "200mg/8mL"
+    },
+    {
+      "id": 157,
+      "name": "Regorafenib 40mg",
+      "activeIngredient": "Regorafenib",
+      "strength": "40mg"
+    },
+    {
+      "id": 158,
+      "name": "Sorafenib 200mg",
+      "activeIngredient": "Sorafenib",
+      "strength": "200mg"
+    },
+    {
+      "id": 159,
+      "name": "Lenvatinib 4mg",
+      "activeIngredient": "Lenvatinib",
+      "strength": "4mg"
+    },
+    {
+      "id": 160,
+      "name": "Lenvatinib 10mg",
+      "activeIngredient": "Lenvatinib",
+      "strength": "10mg"
+    },
+    {
+      "id": 161,
+      "name": "Cabozantinib 20mg",
+      "activeIngredient": "Cabozantinib",
+      "strength": "20mg"
+    },
+    {
+      "id": 162,
+      "name": "Cabozantinib 40mg",
+      "activeIngredient": "Cabozantinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 163,
+      "name": "Cabozantinib 60mg",
+      "activeIngredient": "Cabozantinib",
+      "strength": "60mg"
+    },
+    {
+      "id": 164,
+      "name": "Axitinib 1mg",
+      "activeIngredient": "Axitinib",
+      "strength": "1mg"
+    },
+    {
+      "id": 165,
+      "name": "Axitinib 5mg",
+      "activeIngredient": "Axitinib",
+      "strength": "5mg"
+    },
+    {
+      "id": 166,
+      "name": "Pazopanib 200mg",
+      "activeIngredient": "Pazopanib",
+      "strength": "200mg"
+    },
+    {
+      "id": 167,
+      "name": "Pazopanib 400mg",
+      "activeIngredient": "Pazopanib",
+      "strength": "400mg"
+    },
+    {
+      "id": 168,
+      "name": "Sunitinib 12.5mg",
+      "activeIngredient": "Sunitinib",
+      "strength": "12.5mg"
+    },
+    {
+      "id": 169,
+      "name": "Sunitinib 25mg",
+      "activeIngredient": "Sunitinib",
+      "strength": "25mg"
+    },
+    {
+      "id": 170,
+      "name": "Sunitinib 50mg",
+      "activeIngredient": "Sunitinib",
+      "strength": "50mg"
+    },
+    {
+      "id": 171,
+      "name": "Tivozanib 0.89mg",
+      "activeIngredient": "Tivozanib",
+      "strength": "0.89mg"
+    },
+    {
+      "id": 172,
+      "name": "Tivozanib 1.34mg",
+      "activeIngredient": "Tivozanib",
+      "strength": "1.34mg"
+    },
+    {
+      "id": 173,
+      "name": "Imatinib 100mg",
+      "activeIngredient": "Imatinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 174,
+      "name": "Imatinib 400mg",
+      "activeIngredient": "Imatinib",
+      "strength": "400mg"
+    },
+    {
+      "id": 175,
+      "name": "Dasatinib 20mg",
+      "activeIngredient": "Dasatinib",
+      "strength": "20mg"
+    },
+    {
+      "id": 176,
+      "name": "Dasatinib 50mg",
+      "activeIngredient": "Dasatinib",
+      "strength": "50mg"
+    },
+    {
+      "id": 177,
+      "name": "Dasatinib 70mg",
+      "activeIngredient": "Dasatinib",
+      "strength": "70mg"
+    },
+    {
+      "id": 178,
+      "name": "Dasatinib 100mg",
+      "activeIngredient": "Dasatinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 179,
+      "name": "Nilotinib 150mg",
+      "activeIngredient": "Nilotinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 180,
+      "name": "Nilotinib 200mg",
+      "activeIngredient": "Nilotinib",
+      "strength": "200mg"
+    },
+    {
+      "id": 181,
+      "name": "Bosutinib 100mg",
+      "activeIngredient": "Bosutinib",
+      "strength": "100mg"
+    },
+    {
+      "id": 182,
+      "name": "Bosutinib 500mg",
+      "activeIngredient": "Bosutinib",
+      "strength": "500mg"
+    },
+    {
+      "id": 183,
+      "name": "Ponatinib 15mg",
+      "activeIngredient": "Ponatinib",
+      "strength": "15mg"
+    },
+    {
+      "id": 184,
+      "name": "Ponatinib 30mg",
+      "activeIngredient": "Ponatinib",
+      "strength": "30mg"
+    },
+    {
+      "id": 185,
+      "name": "Ponatinib 45mg",
+      "activeIngredient": "Ponatinib",
+      "strength": "45mg"
+    },
+    {
+      "id": 186,
+      "name": "Asciminib 20mg",
+      "activeIngredient": "Asciminib",
+      "strength": "20mg"
+    },
+    {
+      "id": 187,
+      "name": "Asciminib 40mg",
+      "activeIngredient": "Asciminib",
+      "strength": "40mg"
+    },
+    {
+      "id": 188,
+      "name": "Midostaurin 25mg",
+      "activeIngredient": "Midostaurin",
+      "strength": "25mg"
+    },
+    {
+      "id": 189,
+      "name": "Gilteritinib 40mg",
+      "activeIngredient": "Gilteritinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 190,
+      "name": "Gilteritinib 120mg",
+      "activeIngredient": "Gilteritinib",
+      "strength": "120mg"
+    },
+    {
+      "id": 191,
+      "name": "Quizartinib 26.5mg",
+      "activeIngredient": "Quizartinib",
+      "strength": "26.5mg"
+    },
+    {
+      "id": 192,
+      "name": "Enasidenib 50mg",
+      "activeIngredient": "Enasidenib",
+      "strength": "50mg"
+    },
+    {
+      "id": 193,
+      "name": "Enasidenib 100mg",
+      "activeIngredient": "Enasidenib",
+      "strength": "100mg"
+    },
+    {
+      "id": 194,
+      "name": "Ivosidenib 250mg",
+      "activeIngredient": "Ivosidenib",
+      "strength": "250mg"
+    },
+    {
+      "id": 195,
+      "name": "Glasdegib 25mg",
+      "activeIngredient": "Glasdegib",
+      "strength": "25mg"
+    },
+    {
+      "id": 196,
+      "name": "Glasdegib 100mg",
+      "activeIngredient": "Glasdegib",
+      "strength": "100mg"
+    },
+    {
+      "id": 197,
+      "name": "Azacitidine 100mg",
+      "activeIngredient": "Azacitidine",
+      "strength": "100mg"
+    },
+    {
+      "id": 198,
+      "name": "Decitabine 50mg",
+      "activeIngredient": "Decitabine",
+      "strength": "50mg"
+    },
+    {
+      "id": 199,
+      "name": "Gemtuzumab Ozogamicin 4.5mg",
+      "activeIngredient": "Gemtuzumab Ozogamicin",
+      "strength": "4.5mg"
+    },
+    {
+      "id": 200,
+      "name": "Tagraxofusp 1mg/0.5mL",
+      "activeIngredient": "Tagraxofusp",
+      "strength": "1mg/0.5mL"
+    },
+    {
+      "id": 201,
+      "name": "Tretinoin 10mg",
+      "activeIngredient": "Tretinoin",
+      "strength": "10mg"
+    },
+    {
+      "id": 202,
+      "name": "Arsenic Trioxide 10mg/10mL",
+      "activeIngredient": "Arsenic Trioxide",
+      "strength": "10mg/10mL"
+    },
+    {
+      "id": 203,
+      "name": "Vismodegib 150mg",
+      "activeIngredient": "Vismodegib",
+      "strength": "150mg"
+    },
+    {
+      "id": 204,
+      "name": "Sonidegib 200mg",
+      "activeIngredient": "Sonidegib",
+      "strength": "200mg"
+    },
+    {
+      "id": 205,
+      "name": "Trastuzumab 150mg",
+      "activeIngredient": "Trastuzumab",
+      "strength": "150mg"
+    },
+    {
+      "id": 206,
+      "name": "Trastuzumab 440mg",
+      "activeIngredient": "Trastuzumab",
+      "strength": "440mg"
+    },
+    {
+      "id": 207,
+      "name": "Pertuzumab 420mg/14mL",
+      "activeIngredient": "Pertuzumab",
+      "strength": "420mg/14mL"
+    },
+    {
+      "id": 208,
+      "name": "Trastuzumab Emtansine 100mg",
+      "activeIngredient": "Trastuzumab Emtansine",
+      "strength": "100mg"
+    },
+    {
+      "id": 209,
+      "name": "Trastuzumab Emtansine 160mg",
+      "activeIngredient": "Trastuzumab Emtansine",
+      "strength": "160mg"
+    },
+    {
+      "id": 210,
+      "name": "Trastuzumab Deruxtecan 100mg",
+      "activeIngredient": "Trastuzumab Deruxtecan",
+      "strength": "100mg"
+    },
+    {
+      "id": 211,
+      "name": "Margetuximab 250mg/10mL",
+      "activeIngredient": "Margetuximab",
+      "strength": "250mg/10mL"
+    },
+    {
+      "id": 212,
+      "name": "Tucatinib 50mg",
+      "activeIngredient": "Tucatinib",
+      "strength": "50mg"
+    },
+    {
+      "id": 213,
+      "name": "Tucatinib 150mg",
+      "activeIngredient": "Tucatinib",
+      "strength": "150mg"
+    },
+    {
+      "id": 214,
+      "name": "Neratinib 40mg",
+      "activeIngredient": "Neratinib",
+      "strength": "40mg"
+    },
+    {
+      "id": 215,
+      "name": "Lapatinib 250mg",
+      "activeIngredient": "Lapatinib",
+      "strength": "250mg"
+    },
+    {
+      "id": 216,
+      "name": "Sacituzumab Govitecan 180mg",
+      "activeIngredient": "Sacituzumab Govitecan",
+      "strength": "180mg"
+    },
+    {
+      "id": 217,
+      "name": "Cetuximab 100mg/20mL",
+      "activeIngredient": "Cetuximab",
+      "strength": "100mg/20mL"
+    },
+    {
+      "id": 218,
+      "name": "Cetuximab 500mg/100mL",
+      "activeIngredient": "Cetuximab",
+      "strength": "500mg/100mL"
+    },
+    {
+      "id": 219,
+      "name": "Panitumumab 100mg/5mL",
+      "activeIngredient": "Panitumumab",
+      "strength": "100mg/5mL"
+    },
+    {
+      "id": 220,
+      "name": "Panitumumab 400mg/20mL",
+      "activeIngredient": "Panitumumab",
+      "strength": "400mg/20mL"
+    },
+    {
+      "id": 221,
+      "name": "Necitumumab 800mg/50mL",
+      "activeIngredient": "Necitumumab",
+      "strength": "800mg/50mL"
+    },
+    {
+      "id": 222,
+      "name": "Amivantamab 350mg/7mL",
+      "activeIngredient": "Amivantamab",
+      "strength": "350mg/7mL"
+    },
+    {
+      "id": 223,
+      "name": "Amivantamab 1050mg/21mL",
+      "activeIngredient": "Amivantamab",
+      "strength": "1050mg/21mL"
+    },
+    {
+      "id": 224,
+      "name": "Enfortumab Vedotin 20mg",
+      "activeIngredient": "Enfortumab Vedotin",
+      "strength": "20mg"
+    },
+    {
+      "id": 225,
+      "name": "Enfortumab Vedotin 30mg",
+      "activeIngredient": "Enfortumab Vedotin",
+      "strength": "30mg"
+    },
+    {
+      "id": 226,
+      "name": "Erdafitinib 3mg",
+      "activeIngredient": "Erdafitinib",
+      "strength": "3mg"
+    },
+    {
+      "id": 227,
+      "name": "Erdafitinib 4mg",
+      "activeIngredient": "Erdafitinib",
+      "strength": "4mg"
+    },
+    {
+      "id": 228,
+      "name": "Erdafitinib 5mg",
+      "activeIngredient": "Erdafitinib",
+      "strength": "5mg"
+    },
+    {
+      "id": 229,
+      "name": "Apalutamide 60mg",
+      "activeIngredient": "Apalutamide",
+      "strength": "60mg"
+    },
+    {
+      "id": 230,
+      "name": "Enzalutamide 40mg",
+      "activeIngredient": "Enzalutamide",
+      "strength": "40mg"
+    },
+    {
+      "id": 231,
+      "name": "Darolutamide 300mg",
+      "activeIngredient": "Darolutamide",
+      "strength": "300mg"
+    },
+    {
+      "id": 232,
+      "name": "Radium-223 Dichloride 6.6MBq/6mL",
+      "activeIngredient": "Radium-223 Dichloride",
+      "strength": "6.6MBq/6mL"
+    },
+    {
+      "id": 233,
+      "name": "Lutetium-177 Dotatate 370MBq/mL",
+      "activeIngredient": "Lutetium-177 Dotatate",
+      "strength": "370MBq/mL"
+    },
+    {
+      "id": 234,
+      "name": "Lutetium-177 PSMA-617 7.4GBq/mL",
+      "activeIngredient": "Lutetium-177 PSMA-617",
+      "strength": "7.4GBq/mL"
+    },
+    {
+      "id": 235,
+      "name": "Iobenguane I-131 74MBq/mL",
+      "activeIngredient": "Iobenguane I-131",
+      "strength": "74MBq/mL"
+    },
+    {
+      "id": 236,
+      "name": "Naxitamab 40mg/10mL",
+      "activeIngredient": "Naxitamab",
+      "strength": "40mg/10mL"
+    },
+    {
+      "id": 237,
+      "name": "Dinutuximab 17.5mg/5mL",
+      "activeIngredient": "Dinutuximab",
+      "strength": "17.5mg/5mL"
+    },
+    {
+      "id": 238,
+      "name": "Temozolomide 5mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "5mg"
+    },
+    {
+      "id": 239,
+      "name": "Temozolomide 20mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "20mg"
+    },
+    {
+      "id": 240,
+      "name": "Temozolomide 100mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "100mg"
+    },
+    {
+      "id": 241,
+      "name": "Temozolomide 140mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "140mg"
+    },
+    {
+      "id": 242,
+      "name": "Temozolomide 180mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "180mg"
+    },
+    {
+      "id": 243,
+      "name": "Temozolomide 250mg",
+      "activeIngredient": "Temozolomide",
+      "strength": "250mg"
+    },
+    {
+      "id": 244,
+      "name": "Lomustine 10mg",
+      "activeIngredient": "Lomustine",
+      "strength": "10mg"
+    },
+    {
+      "id": 245,
+      "name": "Lomustine 40mg",
+      "activeIngredient": "Lomustine",
+      "strength": "40mg"
+    },
+    {
+      "id": 246,
+      "name": "Lomustine 100mg",
+      "activeIngredient": "Lomustine",
+      "strength": "100mg"
+    },
+    {
+      "id": 247,
+      "name": "Carmustine 100mg",
+      "activeIngredient": "Carmustine",
+      "strength": "100mg"
+    },
+    {
+      "id": 248,
+      "name": "Carmustine Wafer 7.7mg",
+      "activeIngredient": "Carmustine",
+      "strength": "7.7mg"
+    },
+    {
+      "id": 249,
+      "name": "Vorasidenib 40mg",
+      "activeIngredient": "Vorasidenib",
+      "strength": "40mg"
+    },
+    {
+      "id": 250,
+      "name": "Belzutifan 40mg",
+      "activeIngredient": "Belzutifan",
+      "strength": "40mg"
+    }
+  ]
+}
