@@ -41,8 +41,11 @@ Return JSON:
   "missingSections": [
     {
       "sectionName": "STORAGE CONDITIONS",
+      "gapType": "missing_from_innovator|no_local_equivalent|conflict_with_regulatory",
       "reason": "Required by target market but not in innovator PIL",
       "severity": "critical|major|minor",
+      "suggestedAction": "what the regulatory team should do",
+      "priority": "high|medium|low",
       "suggestedSource": "regulatory_source|market_format|new_content"
     }
   ],

@@ -88,6 +88,8 @@ export default function WorkflowsPage() {
   const [selections, setSelections] = useState({});
   const [allDocuments, setAllDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [executeError, setExecuteError] = useState(null);
   const navigate = useNavigate();
 
   // Fetch real documents from backend when a workflow card is expanded
@@ -132,8 +134,68 @@ export default function WorkflowsPage() {
     setSelections(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleStart = (workflow) => {
-    navigate('/results', { state: { workflowType: workflow.id, selections } });
+  const handleStart = async (workflow) => {
+    setExecuting(true);
+    setExecuteError(null);
+
+    try {
+      // Map workflow ID to API endpoint and request body
+      const endpointMap = {
+        create_draft: {
+          url: '/api/workflows/create-draft',
+          body: {
+            innovatorPilId: selections.innovator_pil,
+            regulatorySourceId: selections.regulatory_source,
+            marketFormatId: selections.local_market_pil_format,
+          }
+        },
+        assess_variation: {
+          url: '/api/workflows/assess-variation',
+          body: {
+            approvedPilId: selections.approved_pil,
+            changeTriggerDocumentId: selections.change_trigger,
+          }
+        },
+        review_aw: {
+          url: '/api/workflows/review-aw',
+          body: {
+            awDraftId: selections.aw_draft,
+            approvedPilId: selections.approved_pil,
+          }
+        },
+        generate_aw: {
+          url: '/api/workflows/generate-aw',
+          body: {
+            approvedPilId: selections.approved_pil,
+            market: selections.target_market,
+            diecutSpecificationId: selections.diecut_specification || null,
+          }
+        },
+      };
+
+      const endpoint = endpointMap[workflow.id];
+      if (!endpoint) throw new Error(`Unknown workflow: ${workflow.id}`);
+
+      const res = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(endpoint.body),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || `Workflow failed (${res.status})`);
+      }
+
+      const result = await res.json();
+      navigate('/results', { state: { workflowType: workflow.id, result } });
+
+    } catch (err) {
+      console.error('Workflow execution failed:', err);
+      setExecuteError(err.message);
+    } finally {
+      setExecuting(false);
+    }
   };
 
   const allRequiredSelected = (workflow) => {
@@ -253,12 +315,25 @@ export default function WorkflowsPage() {
                         );
                       })}
 
+                      {executeError && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
+                          {executeError}
+                        </div>
+                      )}
+
                       <button
                         onClick={() => handleStart(wf)}
-                        disabled={!allRequiredSelected(wf)}
-                        className="w-full mt-2 py-2.5 px-4 bg-lotus-500 hover:bg-lotus-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-lg font-medium text-sm transition-colors"
+                        disabled={!allRequiredSelected(wf) || executing}
+                        className="w-full mt-2 py-2.5 px-4 bg-lotus-500 hover:bg-lotus-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
                       >
-                        Start Workflow
+                        {executing ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" /></svg>
+                            Processing...
+                          </>
+                        ) : (
+                          'Start Workflow'
+                        )}
                       </button>
                     </div>
 

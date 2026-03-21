@@ -1,29 +1,25 @@
-import { extractWithGoogleDocAI } from './providers/googleDocAI.js';
-import { extractWithClaudeVision } from './providers/claudeVision.js';
+import { extractWithClaudeVision } from './claudeVision.js';
 import { getDocumentById } from './documentManager.js';
-import { convertPdfToImages } from '../utils/pdfConverter.js';
 
 /**
  * Extraction Router Service
- * Routes document extraction to configured provider (Google Document AI or Claude Vision)
- * Returns standardized extraction result format
+ * Routes document extraction by file type:
+ * - PDF → Claude Vision (layout-aware extraction)
+ * - Word (.docx) → mammoth (text extraction, $0/page)
  */
 
 // In-memory extraction results cache
 const extractionResults = new Map();
 
-// Configuration - can be changed via environment variable or config file
-let primaryProvider = process.env.EXTRACTION_PROVIDER || 'google_docai';
-
 /**
- * Extract document content using configured provider
+ * Extract document content using appropriate method based on file type
  * @param {string} documentId - Document UUID
  * @param {string} sessionId - Session identifier
  * @returns {Promise<Object>} Standardized extraction result
  */
 export async function extractDocument(documentId, sessionId) {
   const startTime = Date.now();
-  
+
   try {
     // Check if already extracted
     const cached = extractionResults.get(documentId);
@@ -31,107 +27,208 @@ export async function extractDocument(documentId, sessionId) {
       console.log(`[ExtractionRouter] Using cached extraction for ${documentId}`);
       return cached;
     }
-    
+
     // Get document from storage
     const document = getDocumentById(documentId);
     if (!document) {
       throw new Error(`Document not found: ${documentId}`);
     }
-    
-    console.log(`[ExtractionRouter] Extracting document ${documentId} using ${primaryProvider}`, {
+
+    console.log(`[ExtractionRouter] Extracting document ${documentId}`, {
       documentName: document.name,
       documentType: document.type,
+      mimeType: document.mimeType,
       sessionId
     });
-    
-    // Convert PDF to images for extraction
-    const pageImages = await convertPdfToImages(document.fileBlob);
-    
+
     let extractionResult;
-    let provider = primaryProvider;
-    
-    try {
-      // Try primary provider
-      if (primaryProvider === 'google_docai') {
-        extractionResult = await extractWithGoogleDocAI(document.fileBlob, pageImages);
-      } else if (primaryProvider === 'claude_vision') {
-        extractionResult = await extractWithClaudeVision(document.fileBlob, pageImages);
-      } else {
-        throw new Error(`Unknown extraction provider: ${primaryProvider}`);
-      }
-    } catch (primaryError) {
-      console.warn(`[ExtractionRouter] Primary provider ${primaryProvider} failed, attempting fallback`, {
-        error: primaryError.message,
-        documentId
-      });
-      
-      // Fallback to alternative provider
-      provider = primaryProvider === 'google_docai' ? 'claude_vision' : 'google_docai';
-      
-      if (provider === 'google_docai') {
-        extractionResult = await extractWithGoogleDocAI(document.fileBlob, pageImages);
-      } else {
-        extractionResult = await extractWithClaudeVision(document.fileBlob, pageImages);
-      }
-      
-      console.log(`[ExtractionRouter] Fallback to ${provider} successful`);
+
+    // Route by file type: Word docs use mammoth, PDFs use Claude Vision
+    const isWordDoc = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || document.name?.endsWith('.docx');
+
+    if (isWordDoc) {
+      console.log(`[ExtractionRouter] Using mammoth for Word document extraction`);
+      extractionResult = await extractWordWithMammoth(document);
+    } else {
+      console.log(`[ExtractionRouter] Using Claude Vision for PDF extraction`);
+      extractionResult = await extractWithClaudeVision(document);
     }
-    
+
     const processingTimeMs = Date.now() - startTime;
-    
+
     // Standardize result format
     const result = {
       documentId,
-      provider,
+      provider: isWordDoc ? 'mammoth' : 'claude_vision',
       sections: extractionResult.sections,
-      pageImages: pageImages.map((img, idx) => ({
-        pageNumber: idx + 1,
-        imageBase64: img
-      })),
+      pageImages: extractionResult.pageImages || [],
       processingTimeMs,
       processedDate: new Date().toISOString()
     };
-    
+
     // Cache result
     extractionResults.set(documentId, result);
-    
+
     console.log(`[ExtractionRouter] Extraction completed for ${documentId}`, {
-      provider,
+      provider: result.provider,
       sectionCount: result.sections.length,
       processingTimeMs
     });
-    
+
     return result;
-    
+
   } catch (error) {
     console.error(`[ExtractionRouter] Extraction failed for ${documentId}`, {
       error: error.message,
       stack: error.stack
     });
-    
+
     throw new Error(`Document extraction failed: ${error.message}`);
   }
 }
 
 /**
- * Set extraction provider
- * @param {string} provider - 'google_docai' or 'claude_vision'
+ * Extract Word document content using mammoth
+ * Parses into sections by detecting heading patterns:
+ * - ALL CAPS lines (e.g., "DOSAGE AND ADMINISTRATION")
+ * - Numbered sections (e.g., "4.2 Posology")
+ * - Bold text followed by content
  */
-export function setExtractionProvider(provider) {
-  if (provider !== 'google_docai' && provider !== 'claude_vision') {
-    throw new Error(`Invalid provider: ${provider}. Must be 'google_docai' or 'claude_vision'`);
+async function extractWordWithMammoth(document) {
+  try {
+    const mammoth = await import('mammoth');
+
+    const result = await mammoth.default.extractRawText({ buffer: document.buffer });
+    const rawText = result.value;
+
+    if (!rawText || rawText.trim().length === 0) {
+      throw new Error('Mammoth extracted empty text from Word document');
+    }
+
+    console.log(`[ExtractionRouter] Mammoth extracted ${rawText.length} characters`);
+
+    // Parse into sections
+    const sections = parseWordTextIntoSections(rawText);
+
+    console.log(`[ExtractionRouter] Parsed ${sections.length} sections from Word document`);
+
+    return {
+      sections,
+      pageImages: [] // Word docs don't have page images
+    };
+
+  } catch (error) {
+    console.error('[ExtractionRouter] Mammoth extraction failed', { error: error.message });
+    throw new Error(`Word document extraction failed: ${error.message}`);
   }
-  
-  primaryProvider = provider;
-  console.log(`[ExtractionRouter] Provider changed to ${provider}`);
 }
 
 /**
- * Get current extraction provider
- * @returns {string} Current provider name
+ * Parse raw text into sections by detecting heading patterns
  */
-export function getExtractionProvider() {
-  return primaryProvider;
+function parseWordTextIntoSections(rawText) {
+  const lines = rawText.split('\n');
+  const sections = [];
+  let currentSection = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const isHeading = detectHeading(line);
+
+    if (isHeading) {
+      // Save previous section
+      if (currentSection && currentSection.content.trim()) {
+        sections.push(currentSection);
+      }
+
+      currentSection = {
+        sectionName: normalizeHeading(line),
+        content: '',
+        pageReferences: [1], // Word docs don't have reliable page numbers
+        confidenceScore: 0.90,
+        flags: {
+          hasDosageTable: false,
+          hasChemicalFormula: false,
+          hasWarningBox: false,
+          isContinuedFromPrevious: false,
+          continuesOnNext: false
+        }
+      };
+    } else if (currentSection) {
+      currentSection.content += (currentSection.content ? '\n' : '') + line;
+
+      // Detect content flags
+      if (/\d+\s*(mg|mcg|ml|g|iu|units?)\b/i.test(line)) {
+        currentSection.flags.hasDosageTable = true;
+      }
+      if (/[A-Z]\d+H\d+|C₂|H₂O|NaCl|[A-Z][a-z]?\d+/i.test(line)) {
+        currentSection.flags.hasChemicalFormula = true;
+      }
+      if (/warning|caution|danger/i.test(line)) {
+        currentSection.flags.hasWarningBox = true;
+      }
+    } else {
+      // Content before first heading — create an intro section
+      if (!currentSection) {
+        currentSection = {
+          sectionName: 'DOCUMENT HEADER',
+          content: line,
+          pageReferences: [1],
+          confidenceScore: 0.85,
+          flags: {
+            hasDosageTable: false,
+            hasChemicalFormula: false,
+            hasWarningBox: false,
+            isContinuedFromPrevious: false,
+            continuesOnNext: false
+          }
+        };
+      }
+    }
+  }
+
+  // Push last section
+  if (currentSection && currentSection.content.trim()) {
+    sections.push(currentSection);
+  }
+
+  return sections;
+}
+
+/**
+ * Detect if a line is a section heading
+ */
+function detectHeading(line) {
+  // ALL CAPS line with 3+ characters (e.g., "DOSAGE AND ADMINISTRATION")
+  if (/^[A-Z][A-Z\s\/&,()-]{2,}$/.test(line) && line.length <= 80) {
+    return true;
+  }
+
+  // Numbered section (e.g., "4.2 Posology and method of administration")
+  if (/^\d+(\.\d+)*\s+[A-Z]/.test(line)) {
+    return true;
+  }
+
+  // Section number followed by title in various formats
+  if (/^Section\s+\d+/i.test(line)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Normalize heading text to consistent format
+ */
+function normalizeHeading(line) {
+  // Remove leading numbers like "4.2 "
+  let heading = line.replace(/^\d+(\.\d+)*\s+/, '').trim();
+  // Normalize to uppercase
+  heading = heading.toUpperCase();
+  return heading;
 }
 
 /**

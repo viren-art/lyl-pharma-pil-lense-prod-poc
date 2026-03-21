@@ -59,7 +59,8 @@ Respond with ONLY a JSON array in this exact format:
     "significanceScore": 0-100,
     "changeSummary": "Brief description of what changed",
     "approvedText": "First 200 chars of approved text or empty string",
-    "updatedText": "First 200 chars of updated text or empty string"
+    "updatedText": "First 200 chars of updated text or empty string",
+    "impactArea": "safety|efficacy|administrative|formatting"
   }
 ]`;
 

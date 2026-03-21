@@ -22,82 +22,116 @@ function significanceColor(score) {
   return 'text-gray-500';
 }
 
-/* ---------- Mock data for each workflow type ---------- */
+/* ---------- Workflow title mapping ---------- */
 
-const MOCK = {
-  create_draft: {
-    title: 'Create PIL Draft',
-    executionTime: '47.3s',
-    documentsProcessed: 3,
-    sectionAlignment: [
-      { targetSection: 'PRODUCT NAME', innovatorSection: 'Product Information', confidence: 0.95, notes: 'Direct semantic match', pages: [1] },
-      { targetSection: 'ACTIVE INGREDIENTS', innovatorSection: 'Composition', confidence: 0.92, notes: 'High confidence mapping', pages: [2] },
-      { targetSection: 'INDICATIONS', innovatorSection: 'Therapeutic Indications', confidence: 0.88, notes: 'Semantic alignment verified', pages: [3] },
-      { targetSection: 'DOSAGE AND ADMINISTRATION', innovatorSection: 'Posology and Method of Administration', confidence: 0.91, notes: 'Contains dosage tables requiring special attention', pages: [4, 5] },
-      { targetSection: 'CONTRAINDICATIONS', innovatorSection: 'Contraindications', confidence: 0.98, notes: 'Exact match', pages: [6] },
-      { targetSection: 'WARNINGS AND PRECAUTIONS', innovatorSection: 'Special Warnings and Precautions', confidence: 0.89, notes: 'Regulatory alignment confirmed', pages: [7, 8] },
-      { targetSection: 'ADVERSE REACTIONS', innovatorSection: 'Undesirable Effects', confidence: 0.87, notes: 'Terminology variation handled', pages: [9, 10] },
-      { targetSection: 'STORAGE CONDITIONS', innovatorSection: 'NOT_FOUND', confidence: 0.25, notes: 'Missing from innovator PIL - requires new content', pages: [] },
-    ],
-    gaps: {
-      missing: [
-        { section: 'STORAGE CONDITIONS', reason: 'Required by Taiwan TFDA but not present in innovator PIL', severity: 'major' },
-        { section: 'EMERGENCY CONTACT INFORMATION', reason: 'Mandatory for local market compliance', severity: 'critical' },
-      ],
-      incomplete: [
-        { section: 'CONTRAINDICATIONS', elements: ['pregnancy warnings', 'pediatric use restrictions'], severity: 'major', pages: [6] },
-        { section: 'DOSAGE AND ADMINISTRATION', elements: ['renal impairment dosing', 'hepatic impairment dosing'], severity: 'critical', pages: [4, 5] },
-      ],
-    },
-  },
-  assess_variation: {
-    title: 'Assess Variation',
-    executionTime: '6.8s',
-    classification: 'complicated',
-    confidenceScore: 0.87,
-    justification: 'Classified as COMPLICATED: 42.9% of sections changed (6/14), including 2 critical section(s). Significant modifications detected in DOSAGE AND ADMINISTRATION and WARNINGS AND PRECAUTIONS sections.',
-    summary: { totalSections: 14, changed: 6, added: 1, removed: 0, avgSignificance: 68 },
-    sectionDiffs: [
-      { section: 'DOSAGE AND ADMINISTRATION', changeType: 'modified', significance: 95, summary: 'Modified dosing schedule for hepatic impairment patients' },
-      { section: 'CONTRAINDICATIONS', changeType: 'modified', significance: 92, summary: 'New contraindication added for severe hepatic impairment' },
-      { section: 'WARNINGS AND PRECAUTIONS', changeType: 'modified', significance: 88, summary: 'Added hepatotoxicity monitoring requirements' },
-      { section: 'DRUG INTERACTIONS', changeType: 'modified', significance: 75, summary: 'Added interaction with strong CYP3A4 inhibitors' },
-      { section: 'ADVERSE REACTIONS', changeType: 'modified', significance: 65, summary: 'Updated frequency data from post-marketing surveillance' },
-      { section: 'SPECIAL POPULATIONS', changeType: 'added', significance: 70, summary: 'New section for hepatic impairment population' },
-    ],
-  },
-  review_aw: {
-    title: 'Review AW',
-    executionTime: '8.2s',
-    deviations: [
-      { severity: 'critical', section: 'DOSAGE AND ADMINISTRATION', approvedText: 'Take 1000mg once daily at least one hour before or two hours after food.', artworkText: 'Take 1000mg once daily with food.', page: 3, confidence: 0.94 },
-      { severity: 'critical', section: 'CONTRAINDICATIONS', approvedText: 'Hypersensitivity to abiraterone acetate or any excipients. Women who are or may become pregnant.', artworkText: 'Hypersensitivity to abiraterone acetate or any excipients.', page: 5, confidence: 0.91 },
-      { severity: 'major', section: 'WARNINGS AND PRECAUTIONS', approvedText: 'Monitor liver function tests every two weeks for first three months.', artworkText: 'Monitor liver function tests monthly.', page: 6, confidence: 0.88 },
-      { severity: 'major', section: 'ACTIVE INGREDIENTS', approvedText: 'Each tablet contains 250mg abiraterone acetate (equivalent to 238mg abiraterone).', artworkText: 'Each tablet contains 250mg abiraterone acetate.', page: 1, confidence: 0.85 },
-      { severity: 'minor', section: 'STORAGE CONDITIONS', approvedText: 'Store below 30 C. Keep in original package to protect from moisture.', artworkText: 'Store below 30 C in original package.', page: 12, confidence: 0.79 },
-    ],
-    summary: { critical: 2, major: 2, minor: 1 },
-    sections: [
-      { name: 'PRODUCT NAME', content: 'Zenora (Abiraterone Acetate) 250mg Film-Coated Tablets', pages: [1], confidence: 0.96 },
-      { name: 'ACTIVE INGREDIENTS', content: 'Each tablet contains 250mg abiraterone acetate.', pages: [1], confidence: 0.85 },
-      { name: 'DOSAGE AND ADMINISTRATION', content: 'Take 1000mg (four 250mg tablets) once daily with food.', pages: [3], confidence: 0.94 },
-    ],
-  },
-  generate_aw: {
-    title: 'Generate AW Draft',
-    executionTime: '4.8s',
-    market: 'Taiwan TFDA',
-    sectionsProcessed: 12,
-    diecutApplied: false,
-    template: {
-      sectionOrdering: '12 sections (TFDA)',
-      fontFamily: 'Noto Sans TC',
-      paperSize: '210mm x 297mm (A4)',
-      regulatoryText: '\u672C\u85E5\u9808\u7531\u91AB\u5E2B\u8655\u65B9\u4F7F\u7528',
-      emergencyContact: '+886-2-1234-5678',
-    },
-  },
+const WORKFLOW_TITLES = {
+  create_draft: 'Create PIL Draft',
+  assess_variation: 'Assess Variation',
+  review_aw: 'Review AW',
+  generate_aw: 'Generate AW Draft',
 };
+
+/* ---------- Data normalization helpers ---------- */
+
+/**
+ * Normalize backend response to the shape each renderer expects.
+ * Backend responses vary by workflow, so we map fields accordingly.
+ */
+function normalizeCreateDraftData(raw) {
+  return {
+    documentsProcessed: raw.documentsProcessed || 3,
+    executionTime: formatTime(raw.executionTimeMs),
+    sectionAlignment: (raw.sectionAlignment || []).map(a => ({
+      targetSection: a.targetSection || a.localMarketSection || '',
+      innovatorSection: a.innovatorSection || a.innovatorSectionName || 'NOT_FOUND',
+      confidence: a.confidence || a.mappingConfidence || 0,
+      notes: a.notes || a.alignmentStatus || '',
+      pages: a.pageReferences || a.pages || [],
+    })),
+    gaps: {
+      missing: (raw.gaps?.missing || raw.gaps?.missingSections || []).map(g => ({
+        section: g.section || g.sectionName || '',
+        reason: g.reason || g.description || '',
+        severity: g.severity || g.priority || 'major',
+      })),
+      incomplete: (raw.gaps?.incomplete || raw.gaps?.incompleteContent || []).map(g => ({
+        section: g.section || g.sectionName || '',
+        elements: g.elements || g.missingElements || [],
+        severity: g.severity || 'major',
+        pages: g.pages || g.pageReferences || [],
+      })),
+    },
+  };
+}
+
+function normalizeAssessVariationData(raw) {
+  const classification = (raw.classification || '').toLowerCase();
+  return {
+    executionTime: formatTime(raw.executionTimeMs),
+    classification,
+    confidenceScore: raw.confidenceScore || raw.confidence || 0,
+    justification: raw.justification || '',
+    summary: raw.summary || {
+      totalSections: (raw.sectionDiffs || []).length,
+      changed: (raw.sectionDiffs || []).filter(d => d.changeType !== 'unchanged').length,
+      added: (raw.sectionDiffs || []).filter(d => d.changeType === 'added').length,
+      removed: (raw.sectionDiffs || []).filter(d => d.changeType === 'removed').length,
+      avgSignificance: Math.round(
+        ((raw.sectionDiffs || []).reduce((sum, d) => sum + (d.significance || d.significanceScore || 0), 0) /
+        Math.max(1, (raw.sectionDiffs || []).length))
+      ),
+    },
+    sectionDiffs: (raw.sectionDiffs || []).map(d => ({
+      section: d.section || d.sectionName || '',
+      changeType: d.changeType || 'unchanged',
+      significance: d.significance || d.significanceScore || 0,
+      summary: d.summary || d.changeSummary || '',
+    })),
+  };
+}
+
+function normalizeReviewAWData(raw) {
+  const deviations = (raw.deviations || []).map(d => ({
+    severity: d.severity || 'minor',
+    section: d.section || d.sectionName || '',
+    approvedText: d.approvedText || '',
+    artworkText: d.artworkText || '',
+    page: d.page || d.pageReference || 1,
+    confidence: d.confidence || d.confidenceScore || 0.85,
+    explanation: d.explanation || d.description || '',
+  }));
+
+  const summary = raw.summary || {
+    critical: deviations.filter(d => d.severity === 'critical').length,
+    major: deviations.filter(d => d.severity === 'major').length,
+    minor: deviations.filter(d => d.severity === 'minor').length,
+  };
+
+  // Extract sections from the extraction result if available
+  const sections = (raw.sections || raw.extractedSections || []).map(s => ({
+    name: s.name || s.sectionName || '',
+    content: s.content || '',
+    pages: s.pages || s.pageReferences || [],
+    confidence: s.confidence || s.confidenceScore || 0.85,
+  }));
+
+  return { executionTime: formatTime(raw.executionTimeMs), deviations, summary, sections };
+}
+
+function normalizeGenerateAWData(raw) {
+  return {
+    executionTime: formatTime(raw.executionTimeMs),
+    market: raw.market || '',
+    sectionsProcessed: raw.sectionsProcessed || 0,
+    diecutApplied: raw.diecutApplied || false,
+    template: raw.template || {},
+  };
+}
+
+function formatTime(ms) {
+  if (!ms) return '--';
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
 /* ---------- Sub-renderers ---------- */
 
@@ -105,14 +139,12 @@ function CreateDraftResults({ data }) {
   const [tab, setTab] = useState('alignment');
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Documents Processed" value={data.documentsProcessed} />
         <Stat label="Sections Aligned" value={data.sectionAlignment.length} />
         <Stat label="Gaps Found" value={data.gaps.missing.length + data.gaps.incomplete.length} accent="text-orange-600" />
       </div>
 
-      {/* Tabs */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex border-b border-gray-200">
           {[
@@ -171,6 +203,9 @@ function CreateDraftResults({ data }) {
                       </div>
                     </div>
                   ))}
+                  {data.gaps.missing.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">No missing sections found</p>
+                  )}
                 </div>
               </div>
               <div>
@@ -183,10 +218,13 @@ function CreateDraftResults({ data }) {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${severityStyle(g.severity)}`}>{g.severity}</span>
                       </div>
                       <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
-                        {g.elements.map((el, j) => <li key={j}>{el}</li>)}
+                        {(g.elements || []).map((el, j) => <li key={j}>{el}</li>)}
                       </ul>
                     </div>
                   ))}
+                  {data.gaps.incomplete.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">No incomplete content found</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -201,7 +239,6 @@ function AssessVariationResults({ data }) {
   const isComplicated = data.classification === 'complicated';
   return (
     <div className="space-y-6">
-      {/* Classification */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -221,7 +258,6 @@ function AssessVariationResults({ data }) {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat label="Total Sections" value={data.summary.totalSections} />
         <Stat label="Changed" value={data.summary.changed} accent="text-amber-600" />
@@ -230,7 +266,6 @@ function AssessVariationResults({ data }) {
         <Stat label="Avg Significance" value={data.summary.avgSignificance} />
       </div>
 
-      {/* Section Diffs */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-gray-100">
           <h3 className="text-base font-semibold text-gray-900">Section-by-Section Analysis</h3>
@@ -249,9 +284,7 @@ function AssessVariationResults({ data }) {
               {data.sectionDiffs.map((s, i) => (
                 <tr key={i} className="hover:bg-gray-50/50">
                   <td className="px-5 py-3 text-sm font-medium text-gray-900">{s.section}</td>
-                  <td className="px-5 py-3">
-                    <ChangeTypeBadge type={s.changeType} />
-                  </td>
+                  <td className="px-5 py-3"><ChangeTypeBadge type={s.changeType} /></td>
                   <td className="px-5 py-3">
                     <span className={`text-lg font-bold ${significanceColor(s.significance)}`}>{s.significance}</span>
                   </td>
@@ -272,7 +305,6 @@ function ReviewAWResults({ data }) {
 
   return (
     <div className="space-y-6">
-      {/* Summary counts */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-red-200 p-5">
           <div className="text-3xl font-bold text-red-600">{data.summary.critical}</div>
@@ -288,7 +320,6 @@ function ReviewAWResults({ data }) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex border-b border-gray-200">
           {[
@@ -329,6 +360,9 @@ function ReviewAWResults({ data }) {
                         <span className="text-sm font-semibold text-gray-900">{d.section}</span>
                       </div>
                       <p className="text-xs text-gray-400">Page {d.page}</p>
+                      {d.explanation && (
+                        <p className="text-xs text-gray-500 mt-1">{d.explanation}</p>
+                      )}
                     </div>
                     <span className={`px-2.5 py-1 rounded text-xs font-medium border ${confidenceColor(d.confidence)}`}>
                       {(d.confidence * 100).toFixed(0)}%
@@ -353,6 +387,9 @@ function ReviewAWResults({ data }) {
                   )}
                 </div>
               ))}
+              {data.deviations.length === 0 && (
+                <p className="text-sm text-emerald-600 text-center py-8">No deviations detected — documents are aligned.</p>
+              )}
             </div>
           )}
 
@@ -367,9 +404,14 @@ function ReviewAWResults({ data }) {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600">{s.content}</p>
-                  <p className="text-xs text-gray-400 mt-2">Pages: {s.pages.join(', ')}</p>
+                  {s.pages.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-2">Pages: {s.pages.join(', ')}</p>
+                  )}
                 </div>
               ))}
+              {data.sections.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No extracted sections available</p>
+              )}
             </div>
           )}
         </div>
@@ -381,7 +423,6 @@ function ReviewAWResults({ data }) {
 function GenerateAWResults({ data }) {
   return (
     <div className="space-y-6">
-      {/* Success banner */}
       <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
         <div className="flex items-start gap-3">
           <svg className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -394,7 +435,6 @@ function GenerateAWResults({ data }) {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Target Market" value={data.market} small />
         <Stat label="Sections Processed" value={data.sectionsProcessed} />
@@ -402,38 +442,19 @@ function GenerateAWResults({ data }) {
         <Stat label="Generation Time" value={data.executionTime} small />
       </div>
 
-      {/* Template config */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">Applied Template Configuration</h3>
-        <div className="space-y-3">
-          {Object.entries(data.template).map(([key, val]) => (
-            <div key={key} className="flex justify-between py-2 border-b border-gray-50 last:border-0">
-              <span className="text-sm text-gray-500">{key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</span>
-              <span className="text-sm font-medium text-gray-900">{val}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* PDF Preview placeholder */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">PDF Preview</h3>
-        <div className="bg-gray-50 rounded-lg border border-gray-100 p-8 flex flex-col items-center justify-center min-h-[280px]">
-          <div className="w-36 h-48 bg-white rounded-lg shadow-lg border border-gray-200 flex items-center justify-center mb-4">
-            <div className="text-center p-4">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Zenora 250mg</p>
-              <p className="text-[10px] text-gray-400">Patient Information Leaflet</p>
-              <div className="mt-3 space-y-1">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-0.5 bg-gray-200 rounded" style={{ width: `${50 + Math.random() * 50}%` }} />
-                ))}
+      {data.template && Object.keys(data.template).length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="text-base font-semibold text-gray-900 mb-4">Applied Template Configuration</h3>
+          <div className="space-y-3">
+            {Object.entries(data.template).map(([key, val]) => (
+              <div key={key} className="flex justify-between py-2 border-b border-gray-50 last:border-0">
+                <span className="text-sm text-gray-500">{key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</span>
+                <span className="text-sm font-medium text-gray-900">{String(val)}</span>
               </div>
-            </div>
+            ))}
           </div>
-          <p className="text-sm text-gray-500">AW-Draft-taiwan_tfda.pdf</p>
-          <p className="text-xs text-gray-400 mt-0.5">Ready for InDesign refinement</p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -469,8 +490,9 @@ function ChangeTypeBadge({ type }) {
 export default function ResultsPage() {
   const location = useLocation();
   const workflowType = location.state?.workflowType;
+  const rawResult = location.state?.result;
 
-  if (!workflowType || !MOCK[workflowType]) {
+  if (!workflowType || !rawResult) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-16 text-center">
         <div className="w-16 h-16 mx-auto rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -490,22 +512,58 @@ export default function ResultsPage() {
     );
   }
 
-  const data = MOCK[workflowType];
+  // Check for error in result
+  if (rawResult.error) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-16 text-center">
+        <div className="w-16 h-16 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Workflow Failed</h2>
+        <p className="text-sm text-gray-500 mb-6">{rawResult.error.message || 'An unexpected error occurred'}</p>
+        <Link
+          to="/workflows"
+          className="inline-flex px-5 py-2.5 bg-lotus-500 hover:bg-lotus-600 text-white rounded-lg font-medium text-sm transition-colors"
+        >
+          Try Again
+        </Link>
+      </div>
+    );
+  }
+
+  // Normalize data based on workflow type
+  let data;
+  const title = WORKFLOW_TITLES[workflowType] || 'Workflow';
+  const executionTime = formatTime(rawResult.executionTimeMs);
+
+  switch (workflowType) {
+    case 'create_draft':
+      data = normalizeCreateDraftData(rawResult);
+      break;
+    case 'assess_variation':
+      data = normalizeAssessVariationData(rawResult);
+      break;
+    case 'review_aw':
+      data = normalizeReviewAWData(rawResult);
+      break;
+    case 'generate_aw':
+      data = normalizeGenerateAWData(rawResult);
+      break;
+    default:
+      data = rawResult;
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-navy-700">{data.title} — Results</h1>
+          <h1 className="text-2xl font-bold text-navy-700">{title} — Results</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Completed in {data.executionTime}
+            Completed in {data.executionTime || executionTime}
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="px-4 py-2 bg-navy-700 hover:bg-navy-800 text-white rounded-lg text-sm font-medium transition-colors">
-            Export PDF
-          </button>
           <Link
             to="/workflows"
             className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition-colors"

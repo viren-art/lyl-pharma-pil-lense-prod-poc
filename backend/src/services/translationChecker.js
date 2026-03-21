@@ -47,10 +47,17 @@ Return JSON array:
     "complexity": "high|medium|low",
     "reason": "Contains dosage tables with precise measurements",
     "requiresSpecialist": true|false,
+    "specialTerms": ["abiraterone acetate", "hepatotoxicity"],
     "estimatedWords": 500,
     "specialInstructions": "Preserve table formatting, verify measurement units"
   }
-]`;
+]
+
+Additionally, flag any section containing:
+- Dosage tables (need careful layout preservation)
+- Chemical formulas (need exact character reproduction)
+- Numerical data (dosage amounts, concentrations, percentages)
+- Regulatory-specific phrases (must match TFDA/Thai FDA exact wording)`;
 
     const response = await client.messages.create({
       model: CLAUDE_MODEL,

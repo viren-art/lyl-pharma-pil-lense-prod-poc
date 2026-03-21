@@ -66,7 +66,9 @@ Respond with ONLY a JSON object in this exact format:
   "confidenceScore": 0.0-1.0,
   "justification": "Detailed explanation of classification decision",
   "keyChanges": ["List of 3-5 most significant changes detected"],
-  "criticalSections": ["List of section names with critical changes"]
+  "criticalSections": ["List of section names with critical changes"],
+  "triggeringSections": ["sections that drove the classification"],
+  "recommendedAction": "create-new-draft-pil" or "proceed-to-artwork"
 }`;
 
     const response = await client.messages.create({

@@ -28,7 +28,16 @@ ${marketFormatSections.map((s, i) => `${i + 1}. ${s.sectionName}`).join('\n')}
 REGULATORY SOURCE SECTIONS (for reference):
 ${regulatorySections.map((s, i) => `${i + 1}. ${s.sectionName}`).join('\n')}
 
-Task: Map each target market section to the most semantically similar innovator section.
+Task: Map each Innovator PIL section to the corresponding Local Market section requirement.
+Matching is by MEANING not exact name — "WARNINGS AND PRECAUTIONS" matches "WARNINGS" matches "特別警告與注意事項".
+
+For each mapping:
+{
+  "innovatorSection": "DOSAGE AND ADMINISTRATION",
+  "localMarketSection": "4.2 用法用量",
+  "alignmentStatus": "aligned" | "gap" | "conflict",
+  "notes": "explain any gaps or conflicts"
+}
 
 Rules:
 1. Each target section must be mapped to exactly one innovator section
@@ -36,6 +45,7 @@ Rules:
 3. Calculate mapping confidence (0.0-1.0) based on semantic similarity
 4. Consider regulatory requirements when mapping
 5. If no good match exists, set innovatorSection to "NOT_FOUND" with low confidence
+6. Handle cross-language matching (English, Traditional Chinese, Thai)
 
 Return JSON array:
 [
