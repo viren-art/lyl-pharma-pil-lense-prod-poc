@@ -3,9 +3,9 @@ import { classifySeverity } from './severityScorer.js';
 // LYL_DEP: @anthropic-ai/sdk@^0.9.0
 // LYL_DEP: dotenv@^16.3.1
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
-const USE_MOCK = !CLAUDE_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const USE_MOCK = !ANTHROPIC_API_KEY;
 
 /**
  * Detect deviations between Approved PIL and AW Draft
@@ -19,7 +19,7 @@ export async function detectDeviations(approvedSections, artworkSections) {
   
   try {
     const { Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
     
     const prompt = `You are analyzing deviations between an approved PIL (Patient Information Leaflet) and an artwork draft.
 

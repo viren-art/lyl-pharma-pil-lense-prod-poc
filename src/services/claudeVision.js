@@ -3,9 +3,9 @@ import { convertPdfToImages } from '../utils/pdfToImage.js';
 // LYL_DEP: @anthropic-ai/sdk@^0.9.0
 // LYL_DEP: dotenv@^16.3.1
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
-const USE_MOCK = !CLAUDE_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const USE_MOCK = !ANTHROPIC_API_KEY;
 
 // Timeout configuration
 const EXTRACTION_TIMEOUT_MS = 30000; // 30 seconds total timeout
@@ -42,7 +42,7 @@ export async function extractWithClaudeVision(document) {
     // Initialize Claude client
     const { Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({
-      apiKey: CLAUDE_API_KEY
+      apiKey: ANTHROPIC_API_KEY
     });
     
     // Process pages in batches with timeout
