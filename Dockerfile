@@ -12,5 +12,6 @@ RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./
 COPY --from=build /app/src ./src
+COPY --from=build /app/backend ./backend
 EXPOSE 8080
 CMD ["node", "server.js"]
