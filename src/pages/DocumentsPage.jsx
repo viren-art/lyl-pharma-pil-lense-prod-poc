@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import productSuggestions from '../data/productSuggestions.json';
 
 const DOCUMENT_TYPES = [
   'innovator_pil',
@@ -12,14 +13,6 @@ const DOCUMENT_TYPES = [
   'stamped_pil',
 ];
 
-const PRODUCTS = [
-  'Zenora (Abiraterone Acetate) 250mg',
-  'Lenalidomide 25mg',
-  'Ibrutinib 140mg',
-  'Pomalidomide 4mg',
-  'Venetoclax 100mg',
-];
-
 const TYPE_COLORS = {
   innovator_pil: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   approved_pil: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -31,45 +24,6 @@ const TYPE_COLORS = {
   diecut_specification: 'bg-orange-50 text-orange-700 border-orange-200',
   stamped_pil: 'bg-teal-50 text-teal-700 border-teal-200',
 };
-
-const SEED_DOCUMENTS = [
-  {
-    id: '1',
-    name: 'Zenora_PIL_Taiwan_v2.3.pdf',
-    type: 'approved_pil',
-    productName: 'Zenora (Abiraterone Acetate) 250mg',
-    fileSize: 2457600,
-    pageCount: 12,
-    uploadDate: '2024-01-15T14:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Innovator_Reference_Zytiga.pdf',
-    type: 'innovator_pil',
-    productName: 'Zenora (Abiraterone Acetate) 250mg',
-    fileSize: 3145728,
-    pageCount: 18,
-    uploadDate: '2024-01-15T14:25:00Z',
-  },
-  {
-    id: '3',
-    name: 'Thailand_FDA_Format_Template.docx',
-    type: 'local_market_pil_format',
-    productName: 'Lenalidomide 25mg',
-    fileSize: 1048576,
-    pageCount: null,
-    uploadDate: '2024-01-15T13:45:00Z',
-  },
-  {
-    id: '4',
-    name: 'AW_Draft_Lenalidomide_TH_v1.pdf',
-    type: 'aw_draft',
-    productName: 'Lenalidomide 25mg',
-    fileSize: 4194304,
-    pageCount: 24,
-    uploadDate: '2024-01-15T12:15:00Z',
-  },
-];
 
 function formatType(type) {
   return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -89,42 +43,106 @@ function formatSize(bytes) {
 }
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState(SEED_DOCUMENTS);
+  const [documents, setDocuments] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedType, setSelectedType] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState('');
+  const [productInput, setProductInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const suggestionsRef = useRef(null);
 
-  const handleUpload = () => {
-    if (!selectedFile || !selectedType || !selectedProduct) return;
+  // Fetch documents from backend on mount
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchDocuments = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/documents');
+      if (!res.ok) throw new Error('Failed to fetch documents');
+      const data = await res.json();
+      setDocuments(data.documents || []);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch documents:', err);
+      setError('Failed to load documents');
+      setDocuments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !selectedType || !productInput.trim()) return;
     setUploading(true);
-    setTimeout(() => {
-      const newDoc = {
-        id: String(Date.now()),
-        name: selectedFile.name,
-        type: selectedType,
-        productName: selectedProduct,
-        fileSize: selectedFile.size,
-        pageCount: Math.floor(Math.random() * 20) + 5,
-        uploadDate: new Date().toISOString(),
-      };
-      setDocuments([newDoc, ...documents]);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('type', selectedType);
+      formData.append('productName', productInput.trim());
+
+      const res = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || 'Upload failed');
+      }
+
       setSelectedFile(null);
       setSelectedType('');
-      setSelectedProduct('');
+      setProductInput('');
+      await fetchDocuments();
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setError(err.message);
+    } finally {
       setUploading(false);
-    }, 1500);
+    }
   };
+
+  const handleDelete = async (docId) => {
+    try {
+      const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      await fetchDocuments();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setError('Failed to delete document');
+    }
+  };
+
+  const filteredSuggestions = productSuggestions.products.filter(p =>
+    p.toLowerCase().includes(productInput.toLowerCase()) && p !== productInput
+  );
 
   const filteredDocuments = documents.filter(doc => {
     const matchesType = !filterType || doc.type === filterType;
     const matchesSearch =
       !searchQuery ||
       doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.productName.toLowerCase().includes(searchQuery.toLowerCase());
+      (doc.productName && doc.productName.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesType && matchesSearch;
   });
 
@@ -138,6 +156,15 @@ export default function DocumentsPage() {
           Upload and manage pharmaceutical documents for PIL processing workflows
         </p>
       </div>
+
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Upload Panel */}
@@ -226,25 +253,42 @@ export default function DocumentsPage() {
               </select>
             </div>
 
-            {/* Product */}
-            <div className="mb-5">
+            {/* Product Name - free text with autocomplete */}
+            <div className="mb-5 relative" ref={suggestionsRef}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Product Name</label>
-              <select
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
+              <input
+                type="text"
+                value={productInput}
+                onChange={(e) => {
+                  setProductInput(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => { if (productInput) setShowSuggestions(true); }}
+                placeholder="Type product name..."
                 className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-navy-200 focus:border-navy-500 outline-none"
-              >
-                <option value="">Select product...</option>
-                {PRODUCTS.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              />
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {filteredSuggestions.map((product, idx) => (
+                    <li
+                      key={idx}
+                      className="px-3 py-2 text-sm text-gray-700 hover:bg-navy-50 cursor-pointer"
+                      onClick={() => {
+                        setProductInput(product);
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      {product}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Upload button */}
             <button
               onClick={handleUpload}
-              disabled={!selectedFile || !selectedType || !selectedProduct || uploading}
+              disabled={!selectedFile || !selectedType || !productInput.trim() || uploading}
               className="w-full py-2.5 px-4 bg-lotus-500 hover:bg-lotus-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-lg font-medium text-sm transition-colors"
             >
               {uploading ? 'Uploading...' : 'Upload Document'}
@@ -284,8 +328,18 @@ export default function DocumentsPage() {
 
             {/* Document list */}
             <div className="space-y-3">
-              {filteredDocuments.length === 0 && (
-                <div className="text-center py-12 text-gray-400 text-sm">No documents found</div>
+              {loading && (
+                <div className="text-center py-12 text-gray-400 text-sm">Loading documents...</div>
+              )}
+              {!loading && filteredDocuments.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 mx-auto rounded-lg bg-gray-100 flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    {documents.length === 0 ? 'No documents yet — upload your first document to get started' : 'No documents match your search'}
+                  </p>
+                </div>
               )}
               {filteredDocuments.map(doc => (
                 <div
@@ -302,7 +356,7 @@ export default function DocumentsPage() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${TYPE_COLORS[doc.type] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                           {formatType(doc.type)}
                         </span>
-                        <span className="text-xs text-gray-400">{doc.productName}</span>
+                        {doc.productName && <span className="text-xs text-gray-400">{doc.productName}</span>}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-400">
                         <span>{formatSize(doc.fileSize)}</span>
@@ -311,7 +365,7 @@ export default function DocumentsPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setDocuments(documents.filter(d => d.id !== doc.id))}
+                      onClick={() => handleDelete(doc.id)}
                       className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors p-1"
                       title="Delete document"
                     >

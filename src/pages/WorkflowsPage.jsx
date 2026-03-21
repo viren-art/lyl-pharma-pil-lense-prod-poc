@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const WORKFLOWS = [
@@ -30,7 +30,7 @@ const WORKFLOWS = [
     ),
     inputs: [
       { key: 'approved_pil', label: 'Approved PIL', required: true },
-      { key: 'change_trigger', label: 'Change Trigger Document', required: true },
+      { key: 'change_trigger', label: 'Change Trigger Document', required: true, docTypes: ['updated_pil', 'regulatory_announcement'] },
     ],
     steps: [
       'Extracts content from both documents',
@@ -78,37 +78,6 @@ const WORKFLOWS = [
   },
 ];
 
-const MOCK_DOCUMENTS = {
-  innovator_pil: [
-    { id: 'ip1', name: 'Zenora_Innovator_PIL_EN.pdf', product: 'Zenora (Abiraterone Acetate) 250mg' },
-    { id: 'ip2', name: 'Lenalidomide_Innovator_PIL_EN.pdf', product: 'Lenalidomide 25mg' },
-  ],
-  regulatory_source: [
-    { id: 'rs1', name: 'Taiwan_TFDA_Requirements_2024.pdf' },
-    { id: 'rs2', name: 'Thailand_FDA_Guidelines_2024.pdf' },
-  ],
-  local_market_pil_format: [
-    { id: 'lm1', name: 'Taiwan_TFDA_PIL_Template.pdf' },
-    { id: 'lm2', name: 'Thailand_FDA_PIL_Template.pdf' },
-  ],
-  approved_pil: [
-    { id: 'ap1', name: 'Zenora_Approved_PIL_TW.pdf', product: 'Zenora (Abiraterone Acetate) 250mg' },
-    { id: 'ap2', name: 'Lenalidomide_Approved_PIL.pdf', product: 'Lenalidomide 25mg' },
-  ],
-  change_trigger: [
-    { id: 'ct1', name: 'Zenora_Updated_PIL_2024.pdf', type: 'Updated PIL' },
-    { id: 'ct2', name: 'TFDA_Safety_Update_Jan2024.pdf', type: 'Regulatory Announcement' },
-  ],
-  aw_draft: [
-    { id: 'aw1', name: 'Zenora_AW_Draft_v3.pdf', product: 'Zenora (Abiraterone Acetate) 250mg' },
-    { id: 'aw2', name: 'Lenalidomide_AW_Draft_TW.pdf', product: 'Lenalidomide 25mg' },
-  ],
-  diecut_specification: [
-    { id: 'dc1', name: 'Diecut_210x297_z-fold.pdf', dims: '210mm x 297mm, Z-Fold' },
-    { id: 'dc2', name: 'Diecut_200x280_c-fold.pdf', dims: '200mm x 280mm, C-Fold' },
-  ],
-};
-
 const MARKETS = [
   { code: 'taiwan_tfda', name: 'Taiwan TFDA' },
   { code: 'thailand_fda', name: 'Thailand FDA' },
@@ -117,7 +86,40 @@ const MARKETS = [
 export default function WorkflowsPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [selections, setSelections] = useState({});
+  const [allDocuments, setAllDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const navigate = useNavigate();
+
+  // Fetch real documents from backend when a workflow card is expanded
+  useEffect(() => {
+    if (expandedId) {
+      fetchDocuments();
+    }
+  }, [expandedId]);
+
+  const fetchDocuments = async () => {
+    try {
+      setLoadingDocs(true);
+      const res = await fetch('/api/documents');
+      if (!res.ok) throw new Error('Failed to fetch documents');
+      const data = await res.json();
+      setAllDocuments(data.documents || []);
+    } catch (err) {
+      console.error('Failed to fetch documents:', err);
+      setAllDocuments([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const getDocumentsForInput = (input) => {
+    // If input specifies multiple docTypes (e.g. change_trigger), filter by those
+    if (input.docTypes) {
+      return allDocuments.filter(doc => input.docTypes.includes(doc.type));
+    }
+    // Otherwise filter by the input key as document type
+    return allDocuments.filter(doc => doc.type === input.key);
+  };
 
   const handleToggle = (id) => {
     setExpandedId(expandedId === id ? null : id);
@@ -202,40 +204,54 @@ export default function WorkflowsPage() {
                     {/* Document Selectors */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-semibold text-gray-700">Select Documents</h4>
-                      {wf.inputs.map((input, idx) => (
-                        <div key={input.key}>
-                          <label className="block text-sm font-medium text-gray-600 mb-1.5">
-                            {idx + 1}. {input.label}
-                            {input.required && <span className="text-red-500 ml-0.5">*</span>}
-                            {!input.required && <span className="text-gray-400 ml-1 text-xs">(Optional)</span>}
-                          </label>
-                          {input.type === 'market' ? (
-                            <select
-                              value={selections[input.key] || ''}
-                              onChange={(e) => handleSelect(input.key, e.target.value)}
-                              className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-navy-200 focus:border-navy-500 outline-none"
-                            >
-                              <option value="">Select target market...</option>
-                              {MARKETS.map(m => (
-                                <option key={m.code} value={m.code}>{m.name}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <select
-                              value={selections[input.key] || ''}
-                              onChange={(e) => handleSelect(input.key, e.target.value)}
-                              className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-navy-200 focus:border-navy-500 outline-none"
-                            >
-                              <option value="">Select {input.label.toLowerCase()}...</option>
-                              {(MOCK_DOCUMENTS[input.key] || []).map(doc => (
-                                <option key={doc.id} value={doc.id}>
-                                  {doc.name}{doc.product ? ` (${doc.product})` : ''}{doc.type ? ` — ${doc.type}` : ''}{doc.dims ? ` — ${doc.dims}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                      ))}
+
+                      {loadingDocs && (
+                        <p className="text-xs text-gray-400">Loading documents...</p>
+                      )}
+
+                      {wf.inputs.map((input, idx) => {
+                        const docs = input.type === 'market' ? null : getDocumentsForInput(input);
+                        const isEmpty = docs !== null && docs.length === 0;
+
+                        return (
+                          <div key={input.key}>
+                            <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                              {idx + 1}. {input.label}
+                              {input.required && <span className="text-red-500 ml-0.5">*</span>}
+                              {!input.required && <span className="text-gray-400 ml-1 text-xs">(Optional)</span>}
+                            </label>
+                            {input.type === 'market' ? (
+                              <select
+                                value={selections[input.key] || ''}
+                                onChange={(e) => handleSelect(input.key, e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-navy-200 focus:border-navy-500 outline-none"
+                              >
+                                <option value="">Select target market...</option>
+                                {MARKETS.map(m => (
+                                  <option key={m.code} value={m.code}>{m.name}</option>
+                                ))}
+                              </select>
+                            ) : isEmpty ? (
+                              <div className="w-full border border-amber-200 bg-amber-50 rounded-lg py-2.5 px-3 text-sm text-amber-700">
+                                No documents available — upload documents first
+                              </div>
+                            ) : (
+                              <select
+                                value={selections[input.key] || ''}
+                                onChange={(e) => handleSelect(input.key, e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-3 text-sm text-gray-900 focus:ring-2 focus:ring-navy-200 focus:border-navy-500 outline-none"
+                              >
+                                <option value="">Select {input.label.toLowerCase()}...</option>
+                                {(docs || []).map(doc => (
+                                  <option key={doc.id} value={doc.id}>
+                                    {doc.name}{doc.productName ? ` (${doc.productName})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })}
 
                       <button
                         onClick={() => handleStart(wf)}
