@@ -2,6 +2,7 @@
   "name": "pil-lens-pharmaceutical-document-intelligence-for-",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "vite build",
     "start": "node server.js",
