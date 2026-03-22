@@ -3,8 +3,13 @@
   "marketName": "Taiwan TFDA",
   "language": "Traditional Chinese",
   "isDefault": true,
-  "lastUpdated": "2024-01-15T00:00:00.000Z",
-  "source": "default",
+  "lastUpdated": "2026-03-22T00:00:00.000Z",
+  "source": "lotus_approved_pil",
+  "headerFormat": {
+    "productNameBilingual": true,
+    "licenseNumber": true,
+    "prescriptionNote": "須由醫師處方使用"
+  },
   "sections": [
     {
       "number": "1",
@@ -13,7 +18,9 @@
       "required": true,
       "subsections": [
         { "number": "1.1", "name": "Active ingredients and content", "localName": "有效成分及含量" },
-        { "number": "1.2", "name": "Excipients", "localName": "賦形劑" }
+        { "number": "1.2", "name": "Excipients", "localName": "賦形劑" },
+        { "number": "1.3", "name": "Dosage form", "localName": "劑型" },
+        { "number": "1.4", "name": "Appearance", "localName": "藥品外觀" }
       ]
     },
     {
@@ -26,9 +33,13 @@
     {
       "number": "3",
       "name": "Dosage and Administration",
-      "localName": "用法用量",
+      "localName": "用法及用量",
       "required": true,
-      "subsections": []
+      "subsections": [
+        { "number": "3.1", "name": "Dosage", "localName": "用法用量" },
+        { "number": "3.2", "name": "Method of administration", "localName": "用藥方法" },
+        { "number": "3.3", "name": "Special population dosing", "localName": "特殊族群用法用量" }
+      ]
     },
     {
       "number": "4",
@@ -40,55 +51,95 @@
     {
       "number": "5",
       "name": "Warnings and Precautions",
-      "localName": "警告及注意事項",
+      "localName": "警語及注意事項",
       "required": true,
-      "subsections": []
+      "subsections": [
+        { "number": "5.1", "name": "Warnings/Precautions", "localName": "警語/注意事項" }
+      ]
     },
     {
       "number": "6",
-      "name": "Adverse Reactions",
-      "localName": "不良反應",
+      "name": "Special Population Considerations",
+      "localName": "特殊族群注意事項",
       "required": true,
-      "subsections": []
+      "subsections": [
+        { "number": "6.1", "name": "Pregnancy", "localName": "懷孕" },
+        { "number": "6.2", "name": "Lactation", "localName": "哺乳" },
+        { "number": "6.3", "name": "Fertility", "localName": "有生育能力的女性與男性" },
+        { "number": "6.4", "name": "Pediatric use", "localName": "小兒" },
+        { "number": "6.5", "name": "Geriatric use", "localName": "老年人" },
+        { "number": "6.6", "name": "Hepatic impairment", "localName": "肝功能不全" },
+        { "number": "6.7", "name": "Renal impairment", "localName": "腎功能不全" }
+      ]
     },
     {
       "number": "7",
       "name": "Drug Interactions",
       "localName": "藥物交互作用",
       "required": true,
-      "subsections": []
+      "subsections": [
+        { "number": "7.1", "name": "CYP3A4 inhibitors/inducers", "localName": "會抑制或誘導CYP3A4酵素之作用的藥物" },
+        { "number": "7.2", "name": "Effect on drug metabolism", "localName": "對藥物代謝酵素的影響" }
+      ]
     },
     {
       "number": "8",
-      "name": "Use in Special Populations",
-      "localName": "特殊族群使用",
+      "name": "Adverse Reactions",
+      "localName": "副作用/不良反應",
       "required": true,
-      "subsections": []
+      "subsections": [
+        { "number": "8.1", "name": "Clinically important adverse reactions", "localName": "臨床重要副作用/不良反應" },
+        { "number": "8.2", "name": "Clinical trial experience", "localName": "臨床試驗經驗" },
+        { "number": "8.3", "name": "Post-marketing experience", "localName": "上市後經驗" }
+      ]
     },
     {
       "number": "9",
-      "name": "Overdose",
+      "name": "Overdosage",
       "localName": "過量",
       "required": true,
       "subsections": []
     },
     {
       "number": "10",
-      "name": "Storage",
-      "localName": "保存方法",
+      "name": "Pharmacological Properties",
+      "localName": "藥理特性",
+      "required": true,
+      "subsections": [
+        { "number": "10.1", "name": "Mechanism of action", "localName": "作用機轉" },
+        { "number": "10.2", "name": "Pharmacodynamics", "localName": "藥效藥理特性" },
+        { "number": "10.3", "name": "Preclinical safety data", "localName": "臨床前安全性資料" }
+      ]
+    },
+    {
+      "number": "11",
+      "name": "Pharmacokinetics",
+      "localName": "藥物動力學特性",
       "required": true,
       "subsections": []
     },
     {
-      "number": "11",
-      "name": "Manufacturer/Importer",
-      "localName": "製造商/進口商",
+      "number": "12",
+      "name": "Clinical Studies",
+      "localName": "臨床試驗資料",
       "required": true,
       "subsections": []
+    },
+    {
+      "number": "13",
+      "name": "Storage and Packaging",
+      "localName": "包裝及儲存",
+      "required": true,
+      "subsections": [
+        { "number": "13.1", "name": "Packaging", "localName": "包裝" },
+        { "number": "13.2", "name": "Shelf life", "localName": "效期" },
+        { "number": "13.3", "name": "Storage conditions", "localName": "儲存條件" },
+        { "number": "13.4", "name": "Storage precautions", "localName": "儲存注意事項" }
+      ]
     }
   ],
   "mandatoryFooter": {
-    "manufacturer": { "name": "Manufacturer/Importer", "localName": "製造商/進口商", "required": true },
+    "manufacturer": { "name": "Manufacturer/Importer", "localName": "製造廠/進口商", "required": true },
     "revisionDate": { "name": "Date of last revision", "localName": "最後修訂日期", "required": true }
   }
 }

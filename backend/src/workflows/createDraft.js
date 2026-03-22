@@ -394,93 +394,100 @@ Return ONLY the translated text. No explanations or notes.`
 }
 
 /**
- * Step H: Generate Word document (.docx)
- * mode: 'en' = English draft, 'tc'/'th' = Translated draft
+ * Step H: Generate Word document (.docx) matching approved TFDA PIL format
+ * mode: 'en' = English draft (for internal review), 'tc'/'th' = Translated draft (for Lotus/TFDA)
  */
 async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, productName, mode) {
-  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, Packer } = await import('docx');
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, Packer, PageBreak } = await import('docx');
 
   const isTranslated = mode !== 'en';
-  const langLabel = mode === 'tc' ? '繁體中文' : mode === 'th' ? 'ภาษาไทย' : 'English';
   const children = [];
 
-  // Header
+  // ── Document Header (matching approved PIL format) ──
   if (isTranslated) {
+    // Bilingual product name header like real approved PIL
     children.push(new Paragraph({
-      children: [new TextRun({ text: `DRAFT PIL — 供審核用 (For Review)`, bold: true, size: 32, color: 'CC0000' })],
-      alignment: AlignmentType.CENTER, spacing: { after: 200 }
+      children: [new TextRun({ text: productName || 'Product Name', bold: true, size: 28 })],
+      alignment: AlignmentType.CENTER, spacing: { after: 100 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: '須由醫師處方使用', size: 20 })],
+      alignment: AlignmentType.CENTER, spacing: { after: 100 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'DRAFT — 供審核用', bold: true, size: 20, color: 'CC0000' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 400 }
     }));
   } else {
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'INTERNAL REVIEW COPY — English Structure Draft', bold: true, size: 32, color: '1B365D' })],
-      alignment: AlignmentType.CENTER, spacing: { after: 200 }
+      children: [new TextRun({ text: 'INTERNAL REVIEW COPY — English Structure Draft', bold: true, size: 28, color: '1B365D' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 100 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `Product: ${productName || 'N/A'}`, size: 22 })],
+      alignment: AlignmentType.CENTER
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} | Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness}`, size: 18, color: '999999', italics: true })],
+      alignment: AlignmentType.CENTER, spacing: { after: 400 }
     }));
   }
 
-  children.push(new Paragraph({
-    children: [new TextRun({ text: `Product: ${productName || 'N/A'}`, size: 24 })],
-    alignment: AlignmentType.CENTER
-  }));
-  children.push(new Paragraph({
-    children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} | Language: ${langLabel}`, size: 20, color: '666666' })],
-    alignment: AlignmentType.CENTER, spacing: { after: 200 }
-  }));
-  children.push(new Paragraph({
-    children: [new TextRun({ text: `Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness}`, size: 18, color: '999999', italics: true })],
-    alignment: AlignmentType.CENTER, spacing: { after: 600 }
-  }));
-
-  // Sections
+  // ── Sections in TFDA order ──
   for (const m of sectionMapping) {
     const num = m.targetSection.number;
     const name = m.targetSection.name;
     const localName = m.targetSection.localName || '';
 
-    // Section heading
+    // Section heading — Chinese primary for translated, English primary for EN draft
     if (isTranslated && localName) {
+      // Format: "1. 性狀" (Chinese only, matching approved PIL)
       children.push(new Paragraph({
-        children: [
-          new TextRun({ text: `${num}. ${localName}`, bold: true, size: 26 }),
-          new TextRun({ text: ` (${name})`, size: 20, color: '888888' }),
-        ],
-        heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 100 }
+        children: [new TextRun({ text: `${num}. ${localName}`, bold: true, size: 24 })],
+        heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 100 }
       }));
     } else {
+      // English draft: "1. Description (性狀)"
       children.push(new Paragraph({
         children: [
-          new TextRun({ text: `${num}. ${name}`, bold: true, size: 26 }),
-          ...(localName ? [new TextRun({ text: ` (${localName})`, size: 22, color: '666666' })] : []),
+          new TextRun({ text: `${num}. ${name}`, bold: true, size: 24 }),
+          ...(localName ? [new TextRun({ text: ` (${localName})`, size: 20, color: '666666' })] : []),
         ],
-        heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 100 }
+        heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 100 }
       }));
     }
 
     if (m.status === 'mapped' && m.sourceContent) {
       if (isTranslated && m.translatedContent) {
-        // Translated content ONLY — no English underneath (matches approved PIL format)
+        // Translated content ONLY — clean format matching approved PIL
         for (const line of m.translatedContent.split('\n').filter(l => l.trim())) {
           children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
         }
       } else {
-        // English content (or translation failed)
         if (isTranslated) {
           children.push(new Paragraph({
-            children: [new TextRun({ text: '[TRANSLATION PENDING — English content shown below]', bold: true, size: 18, color: 'FF8800' })],
+            children: [new TextRun({ text: '[翻譯待完成 — Translation Pending]', bold: true, size: 18, color: 'FF8800' })],
             spacing: { after: 80 }
           }));
         }
-        // Source reference
-        children.push(new Paragraph({
-          children: [new TextRun({ text: `Source: ${m.sourceSection?.sectionName || 'Innovator PIL'} (${(m.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
-          spacing: { after: 80 }
-        }));
+        // English content with source reference (EN draft only)
+        if (!isTranslated) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `Source: ${m.sourceSection?.sectionName || 'Innovator'} (${(m.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
+            spacing: { after: 60 }
+          }));
+        }
         for (const line of m.sourceContent.split('\n').filter(l => l.trim())) {
           children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
         }
       }
     } else {
+      // Gap
+      const gapText = isTranslated
+        ? '[內容缺漏 — 原始文件中無此資料]'
+        : '[CONTENT GAP — NOT AVAILABLE IN SOURCE DOCUMENT]';
       children.push(new Paragraph({
-        children: [new TextRun({ text: '[CONTENT GAP — NOT AVAILABLE IN SOURCE DOCUMENT]', bold: true, size: 20, color: 'CC0000' })],
+        children: [new TextRun({ text: gapText, bold: true, size: 20, color: 'CC0000' })],
         spacing: { after: 60 }
       }));
       if (m.gapNote) {
@@ -492,42 +499,18 @@ async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, pr
     }
   }
 
-  // Gap Summary
-  children.push(new Paragraph({
-    children: [new TextRun({ text: 'Gap Summary', bold: true, size: 28 })],
-    heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200 }
-  }));
-
-  if (gapAnalysis.gaps.length > 0) {
-    const rows = [
-      new TableRow({ children: ['Section', 'Severity', 'Action'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }),
-      ...gapAnalysis.gaps.map(g => new TableRow({ children: [g.targetSection, g.severity, g.suggestedAction].map(v => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v || '', size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }))
-    ];
-    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
-  } else {
-    children.push(new Paragraph({ children: [new TextRun({ text: 'No gaps — all sections mapped.', size: 20, color: '008800' })] }));
-  }
-
-  // Translation checklist (in translated doc)
-  if (isTranslated) {
+  // ── Appendix: Gap Summary (EN draft only) ──
+  if (!isTranslated && gapAnalysis.gaps.length > 0) {
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'Translation Status', bold: true, size: 28 })],
+      children: [new TextRun({ text: 'Appendix: Gap Summary', bold: true, size: 28 })],
       heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200 }
     }));
 
-    const statusRows = sectionMapping.filter(m => m.sourceContent).map(m => {
-      const status = m.translationStatus === 'translated' ? '✓ Translated' : m.translationStatus === 'failed' ? '✗ Failed — needs human translator' : '○ Pending';
-      return new TableRow({
-        children: [m.targetSection.name, String(m.sourceContent.split(/\s+/).length), status].map(v =>
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, size: 16 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })
-        )
-      });
-    });
-
-    if (statusRows.length > 0) {
-      const header = new TableRow({ children: ['Section', 'Words', 'Status'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) });
-      children.push(new Table({ rows: [header, ...statusRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
-    }
+    const rows = [
+      new TableRow({ children: ['Section', 'Severity', 'Action Required'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }),
+      ...gapAnalysis.gaps.map(g => new TableRow({ children: [g.targetSection, g.severity, g.suggestedAction].map(v => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v || '', size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }))
+    ];
+    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
   }
 
   const doc = new Document({ sections: [{ children }] });
