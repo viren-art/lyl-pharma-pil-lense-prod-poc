@@ -9,24 +9,24 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "express": "^4.21.1",
-    "cors": "^2.8.5",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@google-cloud/documentai": "^8.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
     "compression": "^1.7.5",
-    "puppeteer-core": "^21.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.1",
+    "mammoth": "^1.6.0",
+    "multer": "^2.1.1",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
+    "postcss": "^8.4.38",
+    "puppeteer-core": "^21.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",
-    "dotenv": "^16.3.1",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
-    "vite": "^5.3.1",
-    "pdf-lib": "^1.17.1",
-    "mammoth": "^1.6.0",
-    "@google-cloud/documentai": "^8.0.0",
-    "@anthropic-ai/sdk": "^0.9.0",
-    "multer": "^2.1.1"
+    "vite": "^5.3.1"
   }
 }
