@@ -100,11 +100,16 @@ export async function extractWithClaudeVision(document, options = {}) {
  * Send PDF directly to Claude as a document (native PDF support)
  */
 async function sendPdfToClaude(client, pdfBase64, prompt) {
-  // Calculate safe max_tokens: input ~= base64 size * 0.75 / 4 tokens
-  // Claude context = 200K. Leave room for input.
-  const inputEstimate = Math.ceil(pdfBase64.length * 0.75 / 4);
-  const safeMaxTokens = Math.min(32000, Math.max(8000, 200000 - inputEstimate - 5000));
-  console.log(`[ClaudeVision] Input estimate: ${inputEstimate} tokens, max_tokens: ${safeMaxTokens}`);
+  // Claude counts PDF pages at ~2K tokens/page + prompt tokens (~2K).
+  // base64 size / 1400 ≈ page count for typical pharma PDFs.
+  // For safety, also check raw base64 token estimate.
+  const estimatedPages = Math.ceil(pdfBase64.length / 1400);
+  const inputByPages = estimatedPages * 2000 + 3000; // 2K/page + prompt
+  const inputByBase64 = Math.ceil(pdfBase64.length * 0.75 / 4);
+  // Use the LOWER estimate — Claude's PDF tokenizer is efficient
+  const inputEstimate = Math.min(inputByPages, inputByBase64);
+  const safeMaxTokens = Math.min(64000, Math.max(16000, 200000 - inputEstimate - 5000));
+  console.log(`[ClaudeVision] Pages: ~${estimatedPages}, input estimate: ${inputEstimate} tokens, max_tokens: ${safeMaxTokens}`);
 
   // Use streaming for large documents — Anthropic API requires it for requests >10 min
   const stream = client.messages.stream({
@@ -224,7 +229,86 @@ Return ONLY a JSON object (no markdown code blocks):
 }
 
 /**
- * Parse Claude's JSON response
+ * Repair truncated JSON from Claude hitting token limit mid-output.
+ * Closes open strings, arrays, and objects to make valid JSON.
+ */
+function repairTruncatedJson(text) {
+  // Find the last complete section object by looking for the last "},"
+  // or "}" that closes a section entry in the sections array
+  let lastCompleteSection = text.lastIndexOf('},');
+  if (lastCompleteSection === -1) {
+    lastCompleteSection = text.lastIndexOf('}');
+  }
+
+  if (lastCompleteSection > 0) {
+    // Cut at the last complete object
+    let repaired = text.substring(0, lastCompleteSection + 1);
+
+    // Count open brackets to close them
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let escape = false;
+
+    for (const ch of repaired) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') openBraces++;
+      if (ch === '}') openBraces--;
+      if (ch === '[') openBrackets++;
+      if (ch === ']') openBrackets--;
+    }
+
+    // Close remaining open structures
+    for (let i = 0; i < openBrackets; i++) repaired += ']';
+    for (let i = 0; i < openBraces; i++) repaired += '}';
+
+    try {
+      const parsed = JSON.parse(repaired);
+      const sectionCount = (parsed.sections || parsed || []).length || Object.keys(parsed).length;
+      console.log(`[ClaudeVision] JSON repaired successfully, ${sectionCount} sections recovered`);
+      return parsed;
+    } catch (e) {
+      // Second attempt: try to extract just the sections array
+      const sectionsMatch = text.match(/"sections"\s*:\s*\[/);
+      if (sectionsMatch) {
+        const arrStart = text.indexOf('[', sectionsMatch.index);
+        let depth = 0;
+        let lastGoodPos = arrStart;
+
+        for (let i = arrStart; i < text.length; i++) {
+          if (text[i] === '[') depth++;
+          if (text[i] === ']') { depth--; if (depth === 0) { lastGoodPos = i; break; } }
+          if (text[i] === '}' && depth === 1) lastGoodPos = i;
+        }
+
+        let arrText = text.substring(arrStart, lastGoodPos + 1);
+        // Ensure it ends properly
+        if (!arrText.endsWith(']')) {
+          const lastObj = arrText.lastIndexOf('},');
+          if (lastObj > 0) arrText = arrText.substring(0, lastObj + 1) + ']';
+          else arrText += ']';
+        }
+
+        try {
+          const sections = JSON.parse(arrText);
+          console.log(`[ClaudeVision] Recovered ${sections.length} sections from truncated array`);
+          return { sections, diagrams: [] };
+        } catch (e2) {
+          throw new Error(`Failed to parse Claude response: ${e2.message}`);
+        }
+      }
+      throw new Error(`Failed to parse Claude response: ${e.message}`);
+    }
+  }
+
+  throw new Error(`Failed to parse Claude response: JSON too incomplete to repair`);
+}
+
+/**
+ * Parse Claude's JSON response — handles truncated JSON from token limits
  */
 function parseClaudeResponse(responseText) {
   try {
@@ -233,7 +317,14 @@ function parseClaudeResponse(responseText) {
       jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
     }
 
-    const parsed = JSON.parse(jsonText);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError) {
+      // JSON truncated by token limit — repair it
+      console.log('[ClaudeVision] JSON truncated, attempting repair...');
+      parsed = repairTruncatedJson(jsonText);
+    }
 
     // Handle both array (old format) and object (new format)
     let rawSections, rawDiagrams;
