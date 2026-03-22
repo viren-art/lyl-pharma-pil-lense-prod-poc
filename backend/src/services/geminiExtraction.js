@@ -11,8 +11,9 @@
 import { GoogleGenAI } from '@google/genai';
 
 const GCP_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'lyl-poc-1';
-const GCP_LOCATION = process.env.GCP_LOCATION || 'asia-southeast1';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+// Gemini 2.5 Pro is available in us-central1; fallback to 1.5 Pro if needed
+const GCP_LOCATION = process.env.GCP_LOCATION || 'us-central1';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro-preview-05-06';
 
 let genAI = null;
 
