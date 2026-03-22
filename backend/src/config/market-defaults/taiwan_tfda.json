@@ -136,6 +136,13 @@
         { "number": "13.3", "name": "Storage conditions", "localName": "儲存條件" },
         { "number": "13.4", "name": "Storage precautions", "localName": "儲存注意事項" }
       ]
+    },
+    {
+      "number": "14",
+      "name": "Patient Counseling Information",
+      "localName": "病人使用須知",
+      "required": true,
+      "subsections": []
     }
   ],
   "mandatoryFooter": {
