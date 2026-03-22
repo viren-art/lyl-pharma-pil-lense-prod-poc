@@ -102,7 +102,7 @@ export async function extractWithClaudeVision(document, options = {}) {
 async function sendPdfToClaude(client, pdfBase64, prompt) {
   const response = await client.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 16384,
+    max_tokens: 32000, // Large SmPC docs need more output space
     messages: [{
       role: 'user',
       content: [

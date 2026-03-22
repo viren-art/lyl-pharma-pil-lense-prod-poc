@@ -184,42 +184,51 @@ async function semanticSectionMapping(sourceSections, targetSections, marketTemp
     return fallbackMapping(sourceSections, targetSections);
   }
 
-  const sourceList = sourceSections.map((s, i) => `${i + 1}. "${s.sectionName}" (${s.content.length} chars, pages ${(s.pageReferences || []).join(',')}):\n${s.content.substring(0, 500)}...`).join('\n\n');
+  // Send FULL content — Claude needs the complete text to extract subsections correctly
+  const sourceList = sourceSections.map((s, i) => `=== SOURCE SECTION ${i + 1}: "${s.sectionName}" (pages ${(s.pageReferences || []).join(',')}) ===\n${s.content}`).join('\n\n');
   const targetList = targetSections.map((t, i) => `${i + 1}. ${t.name}${t.localName ? ' (' + t.localName + ')' : ''}`).join('\n');
 
-  const prompt = `You are a pharmaceutical regulatory expert. Map source SmPC/PIL sections to target market sections by MEANING.
+  const prompt = `You are a pharmaceutical regulatory expert. Map source SmPC/EPAR sections to target market sections by MEANING.
 
-SOURCE SECTIONS (from Innovator document):
+The source document is an EU SmPC/EPAR. The target is a ${marketTemplate?.marketName || 'local market'} PIL format.
+
+SOURCE SECTIONS (FULL CONTENT from Innovator SmPC):
 ${sourceList}
 
 TARGET SECTIONS (${marketTemplate?.marketName || 'target market'} template):
 ${targetList}
 
 CRITICAL RULES:
-- One source section may map to MULTIPLE targets. When this happens, you MUST specify exactly which paragraphs/subsection to extract for each target — DO NOT copy the entire source section into every target.
-- Example: SmPC Section 4.4 "Special warnings" has subsections on hepatotoxicity, cardiovascular risk, adrenal insufficiency, etc. Target "Warnings/hepatotoxicity" gets ONLY hepatotoxicity paragraphs. Target "Warnings/cardiovascular" gets ONLY cardiovascular paragraphs. ZERO overlap.
-- Some targets may have NO source match — mark as gap.
-- For each mapping, the "extractedContent" field must contain the ACTUAL TEXT to use for that target section — not just instructions. Extract the relevant paragraphs from the source.
-- Return confidence 0.0-1.0 for each mapping.
+1. One source section WILL map to MULTIPLE targets. SmPC sections are broad — split them:
+   - SmPC "4.4 Special warnings" → multiple targets: Warnings, Precautions, etc.
+   - SmPC "4.2 Posology" → Dosage AND Administration AND Special populations
+   - SmPC "4.8 Undesirable effects" → Adverse Reactions (NOT Overdosage)
+   - SmPC "4.6 Pregnancy/Lactation" → Special Populations subsections
+2. For each mapping, "extractedContent" MUST contain the ACTUAL TEXT paragraphs from the source that belong to that specific target section. Extract the relevant paragraphs — do NOT copy the entire source section.
+3. If a target section needs content from MULTIPLE source sections, combine them.
+4. Targets like "Pharmacology", "Pharmacokinetics", "Clinical Studies" map to SmPC sections 5.1, 5.2, 5.1 respectively — include the full data with numbers.
+5. If no source content exists for a target (e.g., specific local requirements), set sourceIndex: null and provide a gapNote.
+6. Confidence: 0.9+ = direct match, 0.7-0.9 = partial/subsection match, 0.0 = no match (gap).
 
 Return ONLY a JSON array (no markdown), one entry per target section:
 [
   {
     "targetIndex": 0,
     "targetName": "exact target section name",
-    "sourceIndex": 1 or null if no match,
-    "sourceName": "exact source section name" or null,
+    "sourceIndex": 1 or null,
+    "sourceName": "source section name" or null,
     "confidence": 0.85,
-    "extractedContent": "The actual relevant text extracted from the source section for this specific target. Only the paragraphs that belong here, not the entire source section." or null,
-    "gapNote": null or "Requires SmPC section X.X or separate clinical data document"
+    "extractedContent": "The actual relevant paragraphs extracted from source. Include ALL details — numbers, tables, percentages. This becomes the draft PIL content." or null,
+    "gapNote": null or "Not in consumer PIL — requires SmPC or separate source"
   }
 ]`;
 
   try {
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+    // Use Sonnet for mapping — needs to understand full SmPC content and extract subsections
     const response = await client.messages.create({
-      model: HAIKU_MODEL,
-      max_tokens: 16384,
+      model: SONNET_MODEL,
+      max_tokens: 32000,
       messages: [{ role: 'user', content: prompt }]
     });
 

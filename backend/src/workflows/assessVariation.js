@@ -11,12 +11,12 @@ import { randomUUID } from 'crypto';
  * Classifies PIL variation as complicated or general with section-by-section diff
  */
 
-// Performance constants
-const WORKFLOW_TIMEOUT_MS = 75000; // 75 seconds SLA
-const EXTRACTION_TIMEOUT_MS = 30000; // 30 seconds per document extraction
-const CLASSIFICATION_TIMEOUT_MS = 10000; // 10 seconds for classification
+// Performance constants — real pharma docs need more time
+const WORKFLOW_TIMEOUT_MS = 600000; // 10 minutes for large documents
+const EXTRACTION_TIMEOUT_MS = 540000; // 9 minutes per document (100+ page PDFs)
+const CLASSIFICATION_TIMEOUT_MS = 120000; // 2 minutes for classification
 const MAX_DOCUMENT_SIZE_MB = 25; // Maximum document size
-const MAX_PAGES_PER_DOCUMENT = 50; // Maximum pages to prevent excessive processing
+const MAX_PAGES_PER_DOCUMENT = 200; // Real EPAR/SmPC docs can be 100+ pages
 
 /**
  * Execute Assess Variation workflow with timeout enforcement
@@ -152,6 +152,17 @@ async function executeWorkflowInternal(workflowId, approvedPilId, changeTriggerD
     });
   }
   
+  // Generate tracked changes Word document
+  let trackedChangesDocxBase64 = null;
+  try {
+    trackedChangesDocxBase64 = await generateTrackedChangesDocx(
+      sectionDiff, classificationResult, approvedPil.productName || approvedPil.name
+    );
+    console.log('[Assess Variation] Tracked changes document generated');
+  } catch (e) {
+    console.error('[Assess Variation] Tracked changes docx failed:', e.message);
+  }
+
   const result = {
     workflowId,
     workflowType: 'assess_variation',
@@ -159,6 +170,7 @@ async function executeWorkflowInternal(workflowId, approvedPilId, changeTriggerD
     justification: classificationResult.justification,
     confidenceScore: classificationResult.confidenceScore,
     sectionDiffs: sectionDiff,
+    trackedChangesDocxBase64,
     summary: {
       totalSections: sectionDiff.length,
       sectionsChanged: sectionDiff.filter(s => s.changeType !== 'unchanged').length,
@@ -279,4 +291,144 @@ export function validateAssessVariationInput(approvedPilId, changeTriggerDocumen
   }
   
   return { valid: true };
+}
+
+/**
+ * Generate a Word document showing tracked changes (old vs new)
+ * Red strikethrough for removed text, green underline for added text
+ */
+async function generateTrackedChangesDocx(sectionDiffs, classification, productName) {
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, Packer } = await import('docx');
+
+  const children = [];
+
+  // Header
+  children.push(new Paragraph({
+    children: [new TextRun({ text: `PIL Variation Report — ${productName || 'Product'}`, bold: true, size: 28, color: '1B365D' })],
+    heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 100 }
+  }));
+  children.push(new Paragraph({
+    children: [
+      new TextRun({ text: `Classification: `, size: 22 }),
+      new TextRun({ text: classification.classification?.toUpperCase() || 'PENDING', bold: true, size: 22, color: classification.classification === 'complicated' ? 'CC0000' : '008800' })
+    ],
+    alignment: AlignmentType.CENTER, spacing: { after: 100 }
+  }));
+  children.push(new Paragraph({
+    children: [new TextRun({ text: `Generated: ${new Date().toISOString().split('T')[0]}`, size: 18, color: '999999', italics: true })],
+    alignment: AlignmentType.CENTER, spacing: { after: 400 }
+  }));
+
+  // Justification
+  if (classification.justification) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'Classification Justification', bold: true, size: 24 })],
+      heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: classification.justification, size: 20 })],
+      spacing: { after: 300 }
+    }));
+  }
+
+  // Section-by-section changes
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Section-by-Section Changes', bold: true, size: 24 })],
+    heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 200 }
+  }));
+
+  for (const diff of sectionDiffs) {
+    if (diff.changeType === 'unchanged') continue;
+
+    const changeColor = diff.changeType === 'added' ? '008800'
+      : diff.changeType === 'removed' ? 'CC0000'
+      : 'DD6600';
+    const changeLabel = diff.changeType.toUpperCase();
+
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: `${diff.sectionName || 'Section'} `, bold: true, size: 22 }),
+        new TextRun({ text: `[${changeLabel}]`, bold: true, size: 18, color: changeColor }),
+        new TextRun({ text: ` — Significance: ${diff.significanceScore || 0}/100`, size: 18, color: '666666' })
+      ],
+      heading: HeadingLevel.HEADING_3, spacing: { before: 200, after: 100 }
+    }));
+
+    if (diff.changeType === 'modified') {
+      // Show old text with strikethrough
+      if (diff.approvedText) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'APPROVED (old): ', bold: true, size: 18, color: 'CC0000' })],
+          spacing: { after: 40 }
+        }));
+        for (const line of diff.approvedText.substring(0, 2000).split('\n').filter(l => l.trim())) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: line, size: 18, color: 'CC0000', strike: true })],
+            spacing: { after: 30 }
+          }));
+        }
+      }
+      // Show new text with underline
+      if (diff.updatedText) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'UPDATED (new): ', bold: true, size: 18, color: '008800' })],
+          spacing: { before: 80, after: 40 }
+        }));
+        for (const line of diff.updatedText.substring(0, 2000).split('\n').filter(l => l.trim())) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: line, size: 18, color: '008800', underline: {} })],
+            spacing: { after: 30 }
+          }));
+        }
+      }
+    } else if (diff.changeType === 'added') {
+      const text = diff.updatedText || diff.approvedText || '';
+      for (const line of text.substring(0, 2000).split('\n').filter(l => l.trim())) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: line, size: 18, color: '008800', underline: {} })],
+          spacing: { after: 30 }
+        }));
+      }
+    } else if (diff.changeType === 'removed') {
+      const text = diff.approvedText || '';
+      for (const line of text.substring(0, 2000).split('\n').filter(l => l.trim())) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: line, size: 18, color: 'CC0000', strike: true })],
+          spacing: { after: 30 }
+        }));
+      }
+    }
+
+    if (diff.significanceReason) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: `Note: ${diff.significanceReason}`, size: 16, color: '888888', italics: true })],
+        spacing: { before: 40, after: 100 }
+      }));
+    }
+  }
+
+  // Summary table
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Change Summary', bold: true, size: 24 })],
+    heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 }
+  }));
+
+  const summaryData = [
+    ['Change Type', 'Count'],
+    ['Modified', String(sectionDiffs.filter(s => s.changeType === 'modified').length)],
+    ['Added', String(sectionDiffs.filter(s => s.changeType === 'added').length)],
+    ['Removed', String(sectionDiffs.filter(s => s.changeType === 'removed').length)],
+    ['Unchanged', String(sectionDiffs.filter(s => s.changeType === 'unchanged').length)]
+  ];
+  const rows = summaryData.map((row, i) => new TableRow({
+    children: row.map(cell => new TableCell({
+      children: [new Paragraph({ children: [new TextRun({ text: cell, bold: i === 0, size: 18 })] })],
+      width: { size: 50, type: WidthType.PERCENTAGE }
+    }))
+  }));
+  children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+
+  const doc = new Document({ sections: [{ children }] });
+  const buffer = await Packer.toBuffer(doc);
+  return buffer.toString('base64');
 }
