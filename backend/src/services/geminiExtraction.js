@@ -1,17 +1,16 @@
 /**
  * Gemini PDF Extraction Service
  *
- * Uses Vertex AI in us-central1 for Gemini 2.5 Pro access.
+ * Uses Vertex AI Gemini 2.5 Pro in us-central1 for PDF extraction.
  * 1M token context window — eliminates chunking, truncation, and JSON repair.
- * One call. Full document. Complete extraction.
+ * Uses responseSchema to force structured output — no regex parsing.
  *
  * Authentication: Application Default Credentials (ADC) on Cloud Run.
- * Confirmed working: us-central1 endpoint with gemini-2.5-pro model.
  */
-import { VertexAI } from '@google-cloud/vertexai';
+import { VertexAI, Type } from '@google-cloud/vertexai';
 
 const GCP_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'lyl-poc-1';
-const GCP_LOCATION = 'us-central1'; // Confirmed working — gemini-2.5-pro available here
+const GCP_LOCATION = 'us-central1';
 const GEMINI_MODEL = 'gemini-2.5-pro';
 
 let model = null;
@@ -23,10 +22,27 @@ try {
     generationConfig: {
       maxOutputTokens: 65536,
       temperature: 0.0,
-      // No responseMimeType — let Gemini output freely, we parse JSON from response
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            sectionTitle: { type: Type.STRING, description: 'Exact section heading including number, e.g. "4.2 Posology and method of administration"' },
+            content: { type: Type.STRING, description: 'Complete section text. Every paragraph, table (as markdown), number, footnote. No summarizing.' },
+            pageNumber: { type: Type.INTEGER, description: 'Page number where this section starts' },
+            confidence: { type: Type.NUMBER, description: 'Extraction confidence 0.0-1.0' },
+            hasDosageTable: { type: Type.BOOLEAN },
+            hasChemicalFormula: { type: Type.BOOLEAN },
+            isDiagram: { type: Type.BOOLEAN, description: 'True if this entry describes a diagram/chart/table figure rather than text content' },
+            diagramDescription: { type: Type.STRING, description: 'If isDiagram=true, describe what the diagram shows' },
+          },
+          required: ['sectionTitle', 'content']
+        }
+      }
     },
   });
-  console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}, location: ${GCP_LOCATION}`);
+  console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}, location: ${GCP_LOCATION}, schema: enforced`);
 } catch (e) {
   console.warn(`[GeminiExtraction] ⚠ Init failed: ${e.message}`);
 }
@@ -40,7 +56,7 @@ export function isGeminiAvailable() {
 
 /**
  * Extract structured content from a PDF using Gemini.
- * Single call — no chunking, no truncation, no JSON repair.
+ * Single call — no chunking, no truncation. Schema-enforced output.
  */
 export async function extractPdfWithGemini(pdfBuffer, options = {}) {
   if (!model) {
@@ -71,67 +87,51 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
       throw new Error('Gemini returned no candidates');
     }
 
-    let responseText = response.candidates[0].content.parts[0].text;
+    const responseText = response.candidates[0].content.parts[0].text;
 
-    // Strip markdown code blocks if present
-    if (responseText.includes('```json')) {
-      responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (responseText.includes('```')) {
-      responseText = responseText.replace(/```\n?/g, '');
-    }
-    responseText = responseText.trim();
+    // responseSchema guarantees valid JSON array
+    const parsed = JSON.parse(responseText);
 
-    let parsed;
-    try {
-      parsed = JSON.parse(responseText);
-    } catch (parseErr) {
-      // Try to extract JSON object from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
+    // Separate sections from diagrams
+    const rawSections = [];
+    const rawDiagrams = [];
+
+    const items = Array.isArray(parsed) ? parsed : (parsed.sections || [parsed]);
+
+    for (const item of items) {
+      if (item.isDiagram) {
+        rawDiagrams.push({
+          type: 'table',
+          description: item.diagramDescription || item.content || '',
+          pageNumber: item.pageNumber || 1,
+          coordinates: null,
+          relatedSection: item.sectionTitle || ''
+        });
       } else {
-        console.error('[GeminiExtraction] Could not parse response:', responseText.substring(0, 500));
-        throw new Error('Failed to parse Gemini response as JSON');
+        rawSections.push({
+          sectionName: item.sectionTitle || item.sectionName || 'UNKNOWN',
+          content: item.content || '',
+          pageReferences: item.pageNumber ? [item.pageNumber] : [1],
+          confidenceScore: typeof item.confidence === 'number'
+            ? Math.max(0, Math.min(1, item.confidence))
+            : 0.90,
+          flags: {
+            hasDosageTable: item.hasDosageTable || false,
+            hasChemicalFormula: item.hasChemicalFormula || false,
+            hasWarningBox: false,
+            isContinuedFromPrevious: false,
+            continuesOnNext: false,
+            crossRefResolved: false,
+            originalRef: null,
+          }
+        });
       }
     }
-
-    console.log(`[GeminiExtraction] Raw response keys: ${Object.keys(parsed)}, sections: ${(parsed.sections || []).length}`);
-
-    // Normalize to standard format
-    const rawSections = parsed.sections || (Array.isArray(parsed) ? parsed : []);
-    const rawDiagrams = parsed.diagrams || [];
-
-    const sections = rawSections.map(s => ({
-      sectionName: s.sectionName || s.name || s.title || 'UNKNOWN',
-      content: s.content || s.text || '',
-      pageReferences: s.pageNumber ? [s.pageNumber]
-        : (Array.isArray(s.pageReferences) ? s.pageReferences : [1]),
-      confidenceScore: typeof s.confidence === 'number'
-        ? Math.max(0, Math.min(1, s.confidence))
-        : 0.90,
-      flags: {
-        hasDosageTable: s.flags?.hasDosageTable || s.hasDosageTable || false,
-        hasChemicalFormula: s.flags?.hasChemicalFormula || s.hasChemicalFormula || false,
-        hasWarningBox: s.flags?.hasWarningBox || false,
-        isContinuedFromPrevious: false,
-        continuesOnNext: false,
-        crossRefResolved: s.flags?.crossRefResolved || false,
-        originalRef: s.flags?.originalRef || null,
-      }
-    }));
-
-    const diagrams = rawDiagrams.map(d => ({
-      type: d.type || 'table',
-      description: d.description || '',
-      pageNumber: d.pageNumber || d.page || 1,
-      coordinates: d.coordinates || null,
-      relatedSection: d.relatedSection || ''
-    }));
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[GeminiExtraction] ✓ Complete: ${sections.length} sections, ${diagrams.length} diagrams in ${elapsed}s`);
+    console.log(`[GeminiExtraction] ✓ Complete: ${rawSections.length} sections, ${rawDiagrams.length} diagrams in ${elapsed}s`);
 
-    return { sections, diagrams };
+    return { sections: rawSections, diagrams: rawDiagrams };
 
   } catch (error) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -141,71 +141,53 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
 }
 
 /**
- * Build the extraction prompt for Gemini.
+ * Build the extraction prompt — treats PDF as visual document.
  */
 function buildGeminiExtractionPrompt(options = {}) {
-  return `You are a pharmaceutical regulatory document expert extracting structured data from a regulatory document.
+  return `# ROLE
+You are a Senior Regulatory Affairs Specialist at Lotus Pharmaceutical. Your task is to perform a High-Fidelity Multimodal Extraction of this pharmaceutical regulatory document.
 
-IMPORTANT: Return a JSON object with a "sections" array containing ONE OBJECT PER SECTION. Each section MUST be a separate entry in the array. Do NOT merge all content into one section. A typical SmPC has 20-30 separate sections.
+# OBJECTIVE
+Extract EVERY section of this PDF into a structured JSON array. You must preserve the semantic meaning and technical precision required for a Taiwan FDA (TFDA) submission.
 
-This document may be an EPAR, SmPC, or PIL.
+# DOCUMENT TYPE
+This document likely contains BOTH:
+- Summary of Product Characteristics (SmPC) — detailed prescribing information, sections 1-13 with subsections 4.1-4.9, 5.1-5.3, 6.1-6.6
+- Patient Information Leaflet (PIL) — simplified consumer version at the end
 
-CRITICAL: If this document contains BOTH a Summary of Product Characteristics (SmPC, detailed prescribing information, typically sections numbered 1-13 with subsections like 4.1-4.9, 5.1-5.3, 6.1-6.6) AND a Patient Information Leaflet (simplified consumer version at the end, typically "What X is and what it is used for"), extract from the SmPC (the DETAILED version), NOT the consumer PIL.
+Extract ONLY from the SmPC (the DETAILED version). Do NOT extract the consumer PIL.
 
-Extract ALL SmPC sections with their COMPLETE content. Do NOT summarize — include every paragraph, every number, every table row, every footnote.
+# EXTRACTION RULES
+1. **Visual Hierarchy**: Use your vision capabilities to identify sections based on font size, bolding, numbering, and layout (e.g., section 4.1, 4.2). Each numbered section or subsection MUST be a SEPARATE entry in the output array.
+2. **Table Preservation**: Convert all clinical trial results tables and dosage tables into Markdown-formatted strings within the 'content' field. Preserve all row/column relationships, percentages, p-values, confidence intervals.
+3. **Strength Aggregation**: Identify all dosage strengths (e.g., 250mg and 500mg) and extract the specific properties and compositions for each.
+4. **No Summarization**: Extract the FULL technical text. Do not paraphrase. Every paragraph, every number, every footnote.
+5. **Chemical Formulas**: Preserve exactly as printed (C26H33NO2, molecular weights, etc.)
+6. **Cross-References**: Include as-is (e.g., "see section 4.4")
+7. **Diagrams**: For charts, chemical structures, Kaplan-Meier curves — set isDiagram=true and describe what the figure shows.
 
-For each section return:
-{
-  "sectionName": "exact section heading including number (e.g. '4.2 Posology and method of administration')",
-  "content": "COMPLETE text content of this section — every single paragraph, table, number, footnote. Preserve all dosage values, percentages, p-values, confidence intervals, chemical formulas exactly.",
-  "pageNumber": <page number where section starts>,
-  "confidence": <0.0-1.0 your confidence in extraction accuracy>,
-  "hasDosageTable": true/false,
-  "hasChemicalFormula": true/false
-}
+# SECTIONS TO EXTRACT (each as a SEPARATE array entry)
+- 1. Name of the medicinal product
+- 2. Qualitative and quantitative composition
+- 3. Pharmaceutical form
+- 4.1 Therapeutic indications
+- 4.2 Posology and method of administration
+- 4.3 Contraindications
+- 4.4 Special warnings and precautions for use
+- 4.5 Interaction with other medicinal products
+- 4.6 Fertility, pregnancy and lactation
+- 4.7 Effects on ability to drive and use machines
+- 4.8 Undesirable effects (include ALL adverse reaction tables with frequencies)
+- 4.9 Overdose
+- 5.1 Pharmacodynamic properties (include ALL clinical trial data: COU-AA-301, COU-AA-302, LATITUDE with full statistical results)
+- 5.2 Pharmacokinetic properties
+- 5.3 Preclinical safety data
+- 6.1 List of excipients
+- 6.2 Incompatibilities
+- 6.3 Shelf life
+- 6.4 Special precautions for storage
+- 6.5 Nature and contents of container
+- 6.6 Special precautions for disposal
 
-Also identify diagrams, charts, chemical structures, and data tables:
-{
-  "type": "chemical_structure" | "dosage_chart" | "flow_diagram" | "table",
-  "description": "what it shows",
-  "pageNumber": <page>,
-  "relatedSection": "section name this diagram belongs to"
-}
-
-SmPC sections to extract (include ALL that exist):
-1. Name of the medicinal product
-2. Qualitative and quantitative composition
-3. Pharmaceutical form
-4.1 Therapeutic indications
-4.2 Posology and method of administration
-4.3 Contraindications
-4.4 Special warnings and precautions for use
-4.5 Interaction with other medicinal products
-4.6 Fertility, pregnancy and lactation
-4.7 Effects on ability to drive
-4.8 Undesirable effects
-4.9 Overdose
-5.1 Pharmacodynamic properties (including ALL clinical trial results with statistical data)
-5.2 Pharmacokinetic properties
-5.3 Preclinical safety data
-6.1 List of excipients
-6.2 Incompatibilities
-6.3 Shelf life
-6.4 Special precautions for storage
-6.5 Nature and contents of container
-6.6 Special precautions for disposal
-
-Rules:
-- Preserve ALL text exactly as printed including numbers, units, chemical names
-- For tables: extract as structured text preserving column headers and all row data
-- For chemical formulas: preserve subscripts (C26H33NO2)
-- Include cross-references as-is (e.g. "see section 4.4")
-- Include BOTH 250mg and 500mg strength information where applicable
-- Confidence < 0.85 means uncertain — flag it
-
-Return JSON object:
-{
-  "sections": [ ... ],
-  "diagrams": [ ... ]
-}`;
+Each section MUST be a separate object in the array. A typical SmPC has 20-28 separate entries.`;
 }
