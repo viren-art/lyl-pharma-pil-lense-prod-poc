@@ -175,8 +175,29 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
 }
 
 /**
- * Step C: Use Claude to semantically map source sections to target sections.
- * One source section may map to MULTIPLE targets. Some targets may have no match.
+ * Step C: Use Claude to semantically map source SmPC sections to TFDA target sections.
+ *
+ * Key insight: SmPC sections are structured differently than TFDA PIL sections.
+ * One SmPC section maps to multiple TFDA sections, and Claude must extract the
+ * SPECIFIC paragraphs for each target — not copy the entire source.
+ *
+ * Known mappings (SmPC → TFDA):
+ *   SmPC 2 (Composition) → TFDA 1 (性狀: 1.1-1.4)
+ *   SmPC 3 (Form) → TFDA 1.3, 1.4
+ *   SmPC 4.1 (Indications) → TFDA 2 (適應症)
+ *   SmPC 4.2 (Posology) → TFDA 3 (用法及用量: 3.1, 3.3)
+ *   SmPC 4.3 (Contraindications) → TFDA 4 (禁忌)
+ *   SmPC 4.4 (Warnings) → TFDA 5 (警語及注意事項: 5.1.1-5.1.6)
+ *   SmPC 4.5 (Interactions) → TFDA 7 (交互作用: 7.1, 7.2)
+ *   SmPC 4.6 (Pregnancy) → TFDA 6 (特殊族群: 6.1-6.3)
+ *   SmPC 4.2 (Special pops) → TFDA 6 (特殊族群: 6.4-6.7)
+ *   SmPC 4.8 (Adverse effects) → TFDA 8 (副作用: 8.1-8.3)
+ *   SmPC 4.9 (Overdose) → TFDA 9 (過量)
+ *   SmPC 5.1 (Pharmacodynamics) → TFDA 10 (藥理特性: 10.1-10.3)
+ *   SmPC 5.2 (Pharmacokinetics) → TFDA 11 (藥物動力學特性)
+ *   SmPC 5.1 (Clinical trials in PD section) → TFDA 12 (臨床試驗資料)
+ *   SmPC 6 (Pharmaceutical) → TFDA 13 (包裝及儲存: 13.1-13.4)
+ *   Consumer PIL at end → TFDA 14 (病人使用須知)
  */
 async function semanticSectionMapping(sourceSections, targetSections, marketTemplate) {
   if (!CLAUDE_API_KEY || sourceSections.length === 0 || targetSections.length === 0) {
@@ -184,51 +205,86 @@ async function semanticSectionMapping(sourceSections, targetSections, marketTemp
     return fallbackMapping(sourceSections, targetSections);
   }
 
-  // Send FULL content — Claude needs the complete text to extract subsections correctly
-  const sourceList = sourceSections.map((s, i) => `=== SOURCE SECTION ${i + 1}: "${s.sectionName}" (pages ${(s.pageReferences || []).join(',')}) ===\n${s.content}`).join('\n\n');
-  const targetList = targetSections.map((t, i) => `${i + 1}. ${t.name}${t.localName ? ' (' + t.localName + ')' : ''}`).join('\n');
+  // Flatten target sections to include subsections for granular mapping
+  const flatTargets = [];
+  for (const section of targetSections) {
+    flatTargets.push({ number: section.number, name: section.name, localName: section.localName, isParent: true });
+    if (section.subsections) {
+      for (const sub of section.subsections) {
+        flatTargets.push({ number: sub.number, name: sub.name, localName: sub.localName, isParent: false });
+      }
+    }
+  }
 
-  const prompt = `You are a pharmaceutical regulatory expert. Map source SmPC/EPAR sections to target market sections by MEANING.
+  // Build source index with section names and content lengths for the prompt
+  const sourceIndex = sourceSections.map((s, i) => `[${i}] "${s.sectionName}" (${s.content.length} chars, pages ${(s.pageReferences || []).join(',')})`).join('\n');
 
-The source document is an EU SmPC/EPAR. The target is a ${marketTemplate?.marketName || 'local market'} PIL format.
+  // Send full content
+  const sourceContent = sourceSections.map((s, i) => `\n======== SOURCE [${i}]: "${s.sectionName}" ========\n${s.content}`).join('\n');
 
-SOURCE SECTIONS (FULL CONTENT from Innovator SmPC):
-${sourceList}
+  // Build target list with subsections
+  const targetList = flatTargets.map(t => `${t.number}. ${t.name} (${t.localName})`).join('\n');
 
-TARGET SECTIONS (${marketTemplate?.marketName || 'target market'} template):
+  const prompt = `You are a pharmaceutical regulatory expert creating a Taiwan TFDA PIL from an EU SmPC/EPAR.
+
+Your job: For EACH target section below, extract the COMPLETE relevant content from the source SmPC. The output will become the English draft of a TFDA PIL, so completeness is critical — every paragraph, every number, every table must be preserved.
+
+SOURCE DOCUMENT SECTIONS:
+${sourceIndex}
+
+FULL SOURCE CONTENT:
+${sourceContent}
+
+TARGET TFDA PIL SECTIONS (you must produce content for EACH):
 ${targetList}
 
-CRITICAL RULES:
-1. One source section WILL map to MULTIPLE targets. SmPC sections are broad — split them:
-   - SmPC "4.4 Special warnings" → multiple targets: Warnings, Precautions, etc.
-   - SmPC "4.2 Posology" → Dosage AND Administration AND Special populations
-   - SmPC "4.8 Undesirable effects" → Adverse Reactions (NOT Overdosage)
-   - SmPC "4.6 Pregnancy/Lactation" → Special Populations subsections
-2. For each mapping, "extractedContent" MUST contain the ACTUAL TEXT paragraphs from the source that belong to that specific target section. Extract the relevant paragraphs — do NOT copy the entire source section.
-3. If a target section needs content from MULTIPLE source sections, combine them.
-4. Targets like "Pharmacology", "Pharmacokinetics", "Clinical Studies" map to SmPC sections 5.1, 5.2, 5.1 respectively — include the full data with numbers.
-5. If no source content exists for a target (e.g., specific local requirements), set sourceIndex: null and provide a gapNote.
-6. Confidence: 0.9+ = direct match, 0.7-0.9 = partial/subsection match, 0.0 = no match (gap).
+MAPPING GUIDE — use these known correspondences:
+- TFDA 1.1 (有效成分及含量) ← SmPC "Composition" section: active substance name, molecular formula, molecular weight, chemical description, strength per tablet
+- TFDA 1.2 (賦形劑) ← SmPC "Composition" section: excipients list for EACH strength
+- TFDA 1.3 (劑型) ← SmPC "Pharmaceutical form"
+- TFDA 1.4 (藥品外觀) ← SmPC "Pharmaceutical form": tablet description, dimensions, debossing
+- TFDA 2 (適應症) ← SmPC 4.1 "Therapeutic indications": ALL approved indications
+- TFDA 3.1 (用法用量) ← SmPC 4.2 "Posology": dose regimens for each indication, dosage of prednisone, medical castration note, method of administration
+- TFDA 3.3 (特殊族群用法用量) ← SmPC 4.2: hepatic impairment dosing, hepatotoxicity dose adjustments with specific ALT/AST thresholds, CYP3A4 inducer dose adjustments
+- TFDA 4 (禁忌) ← SmPC 4.3 "Contraindications": ALL listed
+- TFDA 5.1 (警語/注意事項) ← SmPC 4.4 "Special warnings": ALL subsections (mineralocorticoid excess, adrenal insufficiency, hepatotoxicity, Ra-223, embryo-fetal, hypoglycaemia, bone density, ketoconazole, excipients, etc.)
+- TFDA 6.1-6.7 (特殊族群) ← SmPC 4.6 (pregnancy, lactation, fertility) + SmPC 4.2 (pediatric, geriatric, hepatic, renal impairment)
+- TFDA 7.1-7.2 (交互作用) ← SmPC 4.5 "Interactions": BOTH directions (effect on abiraterone AND effect of abiraterone on others)
+- TFDA 8.1-8.3 (副作用) ← SmPC 4.8 "Undesirable effects": clinical trial data tables with percentages, post-marketing
+- TFDA 9 (過量) ← SmPC 4.9 "Overdose"
+- TFDA 10.1-10.3 (藥理特性) ← SmPC 5.1 "Pharmacodynamic": mechanism of CYP17 inhibition, preclinical data
+- TFDA 11 (藥物動力學) ← SmPC 5.2 "Pharmacokinetic": absorption, food effect, distribution, metabolism, elimination, special populations PK
+- TFDA 12 (臨床試驗) ← SmPC 5.1 clinical trial subsections: COU-AA-301, COU-AA-302, LATITUDE with HR/CI/p-values
+- TFDA 13.1-13.4 (包裝及儲存) ← SmPC 6.x: packaging, shelf life, storage
+- TFDA 14 (病人使用須知) ← Consumer PIL at end of document (simplified patient version)
 
-Return ONLY a JSON array (no markdown), one entry per target section:
+CRITICAL RULES:
+1. Extract COMPLETE text for each target — every paragraph, number, percentage, p-value, confidence interval, table row
+2. Include BOTH strengths (250mg AND 500mg) wherever applicable
+3. For tables with clinical trial data, preserve ALL rows and columns
+4. When a source section maps to multiple targets, split content precisely — zero overlap
+5. TFDA 5.1 should contain ALL warning subsections from SmPC 4.4, each as a separate paragraph
+6. If content genuinely doesn't exist in source, set extractedContent to null
+
+Return ONLY a JSON array (no markdown code blocks):
 [
   {
-    "targetIndex": 0,
-    "targetName": "exact target section name",
-    "sourceIndex": 1 or null,
-    "sourceName": "source section name" or null,
-    "confidence": 0.85,
-    "extractedContent": "The actual relevant paragraphs extracted from source. Include ALL details — numbers, tables, percentages. This becomes the draft PIL content." or null,
-    "gapNote": null or "Not in consumer PIL — requires SmPC or separate source"
+    "targetNumber": "1.1",
+    "targetName": "Active ingredients and content",
+    "targetLocalName": "有效成分及含量",
+    "sourceIndices": [0, 1],
+    "confidence": 0.95,
+    "extractedContent": "FULL extracted text here — every word from source that belongs in this target section"
   }
-]`;
+]
+
+One entry per target section/subsection in the list above. Include ALL ${flatTargets.length} targets.`;
 
   try {
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
-    // Use streaming for large SmPC content — Anthropic requires it for requests >10 min
     const stream = client.messages.stream({
       model: SONNET_MODEL,
-      max_tokens: 32000,
+      max_tokens: 64000,
       messages: [{ role: 'user', content: prompt }]
     });
     const response = await stream.finalMessage();
@@ -237,31 +293,61 @@ Return ONLY a JSON array (no markdown), one entry per target section:
     if (text.startsWith('```')) text = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
     const mappings = JSON.parse(text);
 
-    console.log(`[CreateDraft] Claude mapped ${mappings.filter(m => m.sourceIndex !== null).length}/${targetSections.length} sections`);
+    console.log(`[CreateDraft] Claude mapped ${mappings.filter(m => m.extractedContent).length}/${flatTargets.length} sections`);
 
-    // Enrich with actual content — use extractedContent (subsection) over full source content
-    return mappings.map(m => {
-      const source = m.sourceIndex !== null ? sourceSections[m.sourceIndex] : null;
-      const target = targetSections[m.targetIndex] || targetSections.find(t => t.name === m.targetName);
+    // Build result using targetSections (parent-level) — merge subsection content under parents
+    return targetSections.map(target => {
+      // Find all mappings for this section number and its subsections
+      const parentMapping = mappings.find(m => m.targetNumber === target.number);
+      const subMappings = mappings.filter(m => m.targetNumber?.startsWith(target.number + '.'));
 
-      // Prefer Claude's extracted subsection content over full source section
-      const content = m.extractedContent || (source ? source.content : null);
+      // Build combined content: parent first, then subsections with their headings
+      let combinedContent = '';
+      if (parentMapping?.extractedContent) {
+        combinedContent = parentMapping.extractedContent;
+      }
+
+      // Add subsection content with proper numbering
+      if (subMappings.length > 0) {
+        for (const sub of subMappings) {
+          if (sub.extractedContent) {
+            const subHeading = `${sub.targetNumber} ${sub.targetLocalName || sub.targetName}`;
+            if (combinedContent) combinedContent += '\n\n';
+            combinedContent += `${subHeading}\n${sub.extractedContent}`;
+          }
+        }
+      }
+
+      // If no content found at all, mark as gap
+      const hasContent = combinedContent.trim().length > 0;
+      const avgConfidence = hasContent
+        ? (subMappings.filter(m => m.extractedContent).reduce((sum, m) => sum + (m.confidence || 0), parentMapping?.confidence || 0) /
+           (subMappings.filter(m => m.extractedContent).length + (parentMapping?.extractedContent ? 1 : 0)) || 0.5)
+        : 0;
+
+      const sourceNames = [
+        ...(parentMapping?.sourceIndices || []),
+        ...subMappings.flatMap(m => m.sourceIndices || [])
+      ].filter((v, i, a) => a.indexOf(v) === i)
+        .map(i => sourceSections[i]?.sectionName)
+        .filter(Boolean);
 
       return {
         targetSection: {
-          number: target?.number || String(m.targetIndex + 1),
-          name: target?.name || m.targetName,
-          localName: target?.localName || ''
+          number: target.number,
+          name: target.name,
+          localName: target.localName || '',
+          subsections: target.subsections || []
         },
-        sourceSection: source ? {
-          sectionName: source.sectionName,
-          pageReferences: source.pageReferences,
-          confidenceScore: source.confidenceScore
+        sourceSection: sourceNames.length > 0 ? {
+          sectionName: sourceNames.join(' + '),
+          pageReferences: [],
+          confidenceScore: avgConfidence
         } : null,
-        sourceContent: content,
-        mappingConfidence: m.confidence || 0,
-        status: content ? 'mapped' : 'gap',
-        gapNote: m.gapNote || null
+        sourceContent: hasContent ? combinedContent : null,
+        mappingConfidence: avgConfidence,
+        status: hasContent ? 'mapped' : 'gap',
+        gapNote: hasContent ? null : (parentMapping?.gapNote || 'Content not found in source document')
       };
     });
 
@@ -363,29 +449,35 @@ async function translateMappedSections(sectionMapping, targetLanguage, marketTem
 
     try {
       console.log(`[CreateDraft] Translating: ${mapping.targetSection.name}`);
-      const response = await client.messages.create({
-        model: HAIKU_MODEL,
-        max_tokens: 4096,
+      // Use streaming for long sections, Sonnet for quality
+      const stream = client.messages.stream({
+        model: SONNET_MODEL,
+        max_tokens: 16000,
         messages: [{
           role: 'user',
           content: `Translate this pharmaceutical PIL section to ${langName} for ${marketName} submission.
 
-Section: ${mapping.targetSection.name} (${mapping.targetSection.localName || ''})
+Section: ${mapping.targetSection.number}. ${mapping.targetSection.localName || mapping.targetSection.name}
 
-English content:
+English content to translate:
 ${mapping.sourceContent}
 
 CRITICAL RULES:
-- Do NOT translate brand names (e.g., ZYTIGA stays as ZYTIGA)
-- Preserve all dosage numbers and units exactly (e.g., 250 mg, 5 mL)
-- Preserve chemical formulas exactly (e.g., C₂₄H₃₁NO₂)
-- Use standard ${marketName}-approved medical terminology
-- Section numbering must match ${marketName} format
-- Maintain table structures if present
+- The output should read like a professional TFDA-approved PIL — not a literal translation
+- Do NOT translate brand names (e.g., ZYTIGA, Abiraterone acetate stay as-is)
+- Preserve ALL dosage numbers and units exactly (e.g., 250毫克, 1000毫克)
+- Preserve chemical formulas exactly (e.g., C₂₆H₃₃NO₂)
+- Preserve ALL clinical trial statistics exactly (p-values, HR, CI, percentages)
+- Use standard ${marketName}-approved medical terminology (e.g., 副作用 not 側效應)
+- Preserve subsection numbering (e.g., 5.1.1, 5.1.2, etc.)
+- Maintain table structures — use | separators for table columns
+- Translate section headings to match TFDA format (e.g., "Hepatotoxicity" → "肝毒性")
+- For parenthetical English terms, keep them: e.g., 腎上腺皮質功能不全(adrenal insufficiency)
 
-Return ONLY the translated text. No explanations or notes.`
+Return ONLY the translated text. No explanations, no English original below.`
         }]
       });
+      const response = await stream.finalMessage();
 
       const translated = response.content[0].text.trim();
       results.push({

@@ -103,7 +103,7 @@ async function sendPdfToClaude(client, pdfBase64, prompt) {
   // Use streaming for large documents — Anthropic API requires it for requests >10 min
   const stream = client.messages.stream({
     model: CLAUDE_MODEL,
-    max_tokens: 32000,
+    max_tokens: 64000, // Full SmPC extraction needs large output
     messages: [{
       role: 'user',
       content: [
