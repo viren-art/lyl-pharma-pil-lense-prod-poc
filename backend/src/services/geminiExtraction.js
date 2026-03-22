@@ -8,7 +8,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro-preview-05-06';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro-preview-05-20';
 
 let genAI = null;
 
