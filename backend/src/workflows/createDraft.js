@@ -293,13 +293,30 @@ One entry per target section/subsection in the list above. Include ALL ${flatTar
     if (text.startsWith('```')) text = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
     const mappings = JSON.parse(text);
 
+    // Debug: log each mapping to verify no off-by-one
+    for (const m of mappings) {
+      console.log(`[CreateDraft] Mapping: ${m.targetNumber} "${m.targetName || m.targetLocalName || ''}" → ${m.extractedContent ? m.extractedContent.substring(0, 80) + '...' : 'NULL'}`);
+    }
     console.log(`[CreateDraft] Claude mapped ${mappings.filter(m => m.extractedContent).length}/${flatTargets.length} sections`);
 
     // Build result using targetSections (parent-level) — merge subsection content under parents
+    // RULE 7: Match by section NUMBER, not by array index
     return targetSections.map(target => {
-      // Find all mappings for this section number and its subsections
+      // Find parent mapping by exact number match
       const parentMapping = mappings.find(m => m.targetNumber === target.number);
-      const subMappings = mappings.filter(m => m.targetNumber?.startsWith(target.number + '.'));
+
+      // Find subsection mappings — must match "X." prefix exactly
+      // Use regex to avoid "1." matching "10.", "11.", etc.
+      const subPrefix = target.number + '.';
+      const subMappings = mappings.filter(m => {
+        if (!m.targetNumber) return false;
+        if (!m.targetNumber.startsWith(subPrefix)) return false;
+        // Ensure it's a real subsection, not a different top-level section
+        // e.g., for target "1", "1.1" is valid but "10" is not
+        // The targetNumber after removing prefix should start with a digit
+        const remainder = m.targetNumber.substring(subPrefix.length);
+        return /^\d/.test(remainder);
+      });
 
       // Build combined content: parent first, then subsections with their headings
       let combinedContent = '';
