@@ -23,7 +23,7 @@ if (CLAUDE_API_KEY) {
 }
 
 // Timeout configuration
-const EXTRACTION_TIMEOUT_MS = 180000; // 3 minutes — Claude PDF processing can be slow for large documents
+const EXTRACTION_TIMEOUT_MS = 540000; // 9 minutes — large pharma docs can be 100+ pages
 
 // Critical sections that must be present
 const REQUIRED_CRITICAL_SECTIONS = [
