@@ -68,13 +68,24 @@ export async function extractDocument(documentId, sessionId) {
       try {
         extractionResult = await extractPdfWithGemini(document.buffer);
       } catch (geminiError) {
-        console.warn(`[ExtractionRouter] Gemini failed, falling back to Claude: ${geminiError.message}`);
-        extractionResult = await extractWithClaudeVision(document);
+        console.error(`[ExtractionRouter] Gemini failed: ${geminiError.message}`);
+        // Only fall back to Claude for SMALL PDFs (<1MB) to avoid $1.50+ wasted on truncation
+        if (document.buffer.length < 1024 * 1024) {
+          console.warn(`[ExtractionRouter] Small PDF — falling back to Claude`);
+          extractionResult = await extractWithClaudeVision(document);
+        } else {
+          // Large PDF — don't waste money on Claude chunked extraction that will likely truncate
+          throw new Error(`PDF extraction failed: Gemini unavailable and document too large (${(document.buffer.length / 1024 / 1024).toFixed(1)}MB) for Claude fallback. Fix Gemini API key/model configuration.`);
+        }
       }
     } else {
-      // Claude Vision: chunked extraction (200K context limit)
-      console.log(`[ExtractionRouter] Using Claude Vision for PDF extraction (chunked)`);
-      extractionResult = await extractWithClaudeVision(document);
+      // No Gemini — only use Claude for small PDFs
+      if (document.buffer.length < 1024 * 1024) {
+        console.log(`[ExtractionRouter] Using Claude Vision for PDF extraction (small doc)`);
+        extractionResult = await extractWithClaudeVision(document);
+      } else {
+        throw new Error('Large PDF extraction requires Gemini (GEMINI_API_KEY not configured). Configure Gemini or upload a smaller document.');
+      }
     }
 
     const processingTimeMs = Date.now() - startTime;
