@@ -100,10 +100,16 @@ export async function extractWithClaudeVision(document, options = {}) {
  * Send PDF directly to Claude as a document (native PDF support)
  */
 async function sendPdfToClaude(client, pdfBase64, prompt) {
+  // Calculate safe max_tokens: input ~= base64 size * 0.75 / 4 tokens
+  // Claude context = 200K. Leave room for input.
+  const inputEstimate = Math.ceil(pdfBase64.length * 0.75 / 4);
+  const safeMaxTokens = Math.min(32000, Math.max(8000, 200000 - inputEstimate - 5000));
+  console.log(`[ClaudeVision] Input estimate: ${inputEstimate} tokens, max_tokens: ${safeMaxTokens}`);
+
   // Use streaming for large documents — Anthropic API requires it for requests >10 min
   const stream = client.messages.stream({
     model: CLAUDE_MODEL,
-    max_tokens: 64000, // Full SmPC extraction needs large output
+    max_tokens: safeMaxTokens,
     messages: [{
       role: 'user',
       content: [
