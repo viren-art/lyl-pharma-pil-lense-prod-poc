@@ -496,41 +496,61 @@ Return ONLY the translated text. No explanations, no English original below.`
 }
 
 /**
- * Step H: Generate Word document (.docx) matching approved TFDA PIL format
- * mode: 'en' = English draft (for internal review), 'tc'/'th' = Translated draft (for Lotus/TFDA)
+ * Step H: Generate Word document (.docx) matching approved Lotus TFDA PIL format EXACTLY.
+ *
+ * Format rules (from approved abi try.docx):
+ * - Header: Bilingual product name + registration numbers + "須由醫師處方使用"
+ * - Main sections: "4. 禁忌 (依文獻紀載)" — bold, with suffix for sections 4-12
+ * - Subsections: "5.1 警語/注意事項" — bold
+ * - Sub-subsections: "5.1.1 礦物皮質激素過多..." — bold
+ * - Body text: Regular, 10pt equivalent
+ * - Cross-references inline: "[參見警語及注意事項(5.1.1)]"
+ * - Footer: 製造廠/廠址/藥商/地址
+ * - No decorative formatting, no colors — plain black text on white
  */
 async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, productName, mode) {
-  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, Packer, PageBreak } = await import('docx');
+  const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer } = await import('docx');
 
   const isTranslated = mode !== 'en';
   const children = [];
 
-  // ── Document Header (matching approved PIL format) ──
+  // Standard font size (half-points): 20 = 10pt body, 24 = 12pt heading, 28 = 14pt title
+  const BODY_SIZE = 20;
+  const HEADING_SIZE = 24;
+  const TITLE_SIZE = 28;
+
+  // Sections 4-12 have "(依文獻紀載)" suffix in approved PIL
+  const LITERATURE_SUFFIX_SECTIONS = ['4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+  // ── Document Header (matching approved PIL exactly) ──
   if (isTranslated) {
-    // Bilingual product name header like real approved PIL
+    // Line 1: Chinese product name + English name + registration number (250mg)
     children.push(new Paragraph({
-      children: [new TextRun({ text: productName || 'Product Name', bold: true, size: 28 })],
-      alignment: AlignmentType.CENTER, spacing: { after: 100 }
+      children: [new TextRun({ text: `${productName || '[藥品中文名稱]'} (衛部藥輸字第______號)`, bold: true, size: TITLE_SIZE })],
+      spacing: { after: 120 }
     }));
+    // Line 2: 500mg strength if applicable
     children.push(new Paragraph({
-      children: [new TextRun({ text: '須由醫師處方使用', size: 20 })],
-      alignment: AlignmentType.CENTER, spacing: { after: 100 }
+      children: [new TextRun({ text: '', size: BODY_SIZE })],
+      spacing: { after: 200 }
     }));
+    // Prescription note
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'DRAFT — 供審核用', bold: true, size: 20, color: 'CC0000' })],
+      children: [new TextRun({ text: '須由醫師處方使用', bold: true, size: BODY_SIZE })],
+      spacing: { after: 200 }
+    }));
+    // DRAFT watermark
+    children.push(new Paragraph({
+      children: [new TextRun({ text: '【草稿 DRAFT — 供審核用】', bold: true, size: HEADING_SIZE, color: 'CC0000' })],
       alignment: AlignmentType.CENTER, spacing: { after: 400 }
     }));
   } else {
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'INTERNAL REVIEW COPY — English Structure Draft', bold: true, size: 28, color: '1B365D' })],
+      children: [new TextRun({ text: 'INTERNAL REVIEW COPY — English Structure Draft', bold: true, size: TITLE_SIZE, color: '1B365D' })],
       alignment: AlignmentType.CENTER, spacing: { after: 100 }
     }));
     children.push(new Paragraph({
-      children: [new TextRun({ text: `Product: ${productName || 'N/A'}`, size: 22 })],
-      alignment: AlignmentType.CENTER
-    }));
-    children.push(new Paragraph({
-      children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} | Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness}`, size: 18, color: '999999', italics: true })],
+      children: [new TextRun({ text: `Product: ${productName || 'N/A'} | Market: ${marketTemplate?.marketName || 'N/A'} | ${new Date().toISOString().split('T')[0]}`, size: 18, color: '666666' })],
       alignment: AlignmentType.CENTER, spacing: { after: 400 }
     }));
   }
@@ -541,55 +561,95 @@ async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, pr
     const name = m.targetSection.name;
     const localName = m.targetSection.localName || '';
 
-    // Section heading — Chinese primary for translated, English primary for EN draft
+    // Determine if this section gets "(依文獻紀載)" suffix
+    const needsSuffix = isTranslated && LITERATURE_SUFFIX_SECTIONS.includes(num);
+    const suffix = needsSuffix ? ' (依文獻紀載)' : '';
+
+    // ── Section heading ──
     if (isTranslated && localName) {
-      // Format: "1. 性狀" (Chinese only, matching approved PIL)
+      // Approved format: "4. 禁忌 (依文獻紀載)" — bold
       children.push(new Paragraph({
-        children: [new TextRun({ text: `${num}. ${localName}`, bold: true, size: 24 })],
-        heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 100 }
+        children: [new TextRun({ text: `${num}. ${localName}${suffix}`, bold: true, size: HEADING_SIZE })],
+        spacing: { before: 300, after: 120 }
       }));
     } else {
-      // English draft: "1. Description (性狀)"
+      // English draft: "4. Contraindications (禁忌)"
       children.push(new Paragraph({
         children: [
-          new TextRun({ text: `${num}. ${name}`, bold: true, size: 24 }),
-          ...(localName ? [new TextRun({ text: ` (${localName})`, size: 20, color: '666666' })] : []),
+          new TextRun({ text: `${num}. ${name}`, bold: true, size: HEADING_SIZE }),
+          ...(localName ? [new TextRun({ text: ` (${localName})`, size: BODY_SIZE, color: '666666' })] : []),
         ],
-        heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 100 }
+        spacing: { before: 300, after: 120 }
       }));
     }
 
+    // ── Section content ──
     if (m.status === 'mapped' && m.sourceContent) {
-      if (isTranslated && m.translatedContent) {
-        // Translated content ONLY — clean format matching approved PIL
-        for (const line of m.translatedContent.split('\n').filter(l => l.trim())) {
-          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
-        }
-      } else {
-        if (isTranslated) {
+      const content = (isTranslated && m.translatedContent) ? m.translatedContent : m.sourceContent;
+
+      if (isTranslated && !m.translatedContent) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: '[翻譯待完成 — Translation Pending]', bold: true, size: 18, color: 'FF8800' })],
+          spacing: { after: 80 }
+        }));
+      }
+
+      // Render content preserving subsection structure
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Detect subsection headings by numbering pattern
+        const isSubsection = /^\d+\.\d+\s/.test(trimmed);
+        const isSubSubsection = /^\d+\.\d+\.\d+/.test(trimmed);
+
+        if (isSubSubsection) {
+          // Sub-subsection: "5.1.1 礦物皮質激素..." — bold, slightly indented
           children.push(new Paragraph({
-            children: [new TextRun({ text: '[翻譯待完成 — Translation Pending]', bold: true, size: 18, color: 'FF8800' })],
+            children: [new TextRun({ text: trimmed, bold: true, size: BODY_SIZE })],
+            spacing: { before: 200, after: 80 }
+          }));
+        } else if (isSubsection) {
+          // Subsection: "5.1 警語/注意事項" — bold
+          children.push(new Paragraph({
+            children: [new TextRun({ text: trimmed, bold: true, size: BODY_SIZE + 2 })],
+            spacing: { before: 240, after: 100 }
+          }));
+        } else if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
+          // Bullet point
+          children.push(new Paragraph({
+            children: [new TextRun({ text: trimmed, size: BODY_SIZE })],
+            spacing: { after: 60 }, indent: { left: 400 }
+          }));
+        } else if (/^\|/.test(trimmed) || /\t.*\t/.test(trimmed)) {
+          // Table row — render as-is (tables are complex; keep as formatted text)
+          children.push(new Paragraph({
+            children: [new TextRun({ text: trimmed, size: 18, font: 'Courier New' })],
+            spacing: { after: 40 }
+          }));
+        } else {
+          // Regular body text
+          children.push(new Paragraph({
+            children: [new TextRun({ text: trimmed, size: BODY_SIZE })],
             spacing: { after: 80 }
           }));
         }
-        // English content with source reference (EN draft only)
-        if (!isTranslated) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: `Source: ${m.sourceSection?.sectionName || 'Innovator'} (${(m.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
-            spacing: { after: 60 }
-          }));
-        }
-        for (const line of m.sourceContent.split('\n').filter(l => l.trim())) {
-          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
-        }
+      }
+
+      // EN draft: add source reference at end of section
+      if (!isTranslated && m.sourceSection) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `[Source: ${m.sourceSection.sectionName} | Confidence: ${(m.mappingConfidence * 100).toFixed(0)}%]`, size: 16, color: '008800', italics: true })],
+          spacing: { before: 40, after: 100 }
+        }));
       }
     } else {
-      // Gap
+      // Gap — red placeholder
       const gapText = isTranslated
-        ? '[內容缺漏 — 原始文件中無此資料]'
-        : '[CONTENT GAP — NOT AVAILABLE IN SOURCE DOCUMENT]';
+        ? '[內容缺漏 — 原始文件中無此資料，需另行補充]'
+        : '[CONTENT GAP — Not available in source document]';
       children.push(new Paragraph({
-        children: [new TextRun({ text: gapText, bold: true, size: 20, color: 'CC0000' })],
+        children: [new TextRun({ text: gapText, bold: true, size: BODY_SIZE, color: 'CC0000' })],
         spacing: { after: 60 }
       }));
       if (m.gapNote) {
@@ -601,21 +661,41 @@ async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, pr
     }
   }
 
+  // ── Manufacturer Footer (matching approved PIL) ──
+  if (isTranslated) {
+    children.push(new Paragraph({ children: [], spacing: { before: 400 } }));
+    children.push(new Paragraph({ children: [new TextRun({ text: '製造廠：[廠名]', size: BODY_SIZE })], spacing: { after: 60 } }));
+    children.push(new Paragraph({ children: [new TextRun({ text: '廠址：[廠址]', size: BODY_SIZE })], spacing: { after: 60 } }));
+    children.push(new Paragraph({ children: [new TextRun({ text: '藥商：美時化學製藥股份有限公司', size: BODY_SIZE })], spacing: { after: 60 } }));
+    children.push(new Paragraph({ children: [new TextRun({ text: '地址：台北市信義區松仁路277號17樓', size: BODY_SIZE })], spacing: { after: 60 } }));
+  }
+
   // ── Appendix: Gap Summary (EN draft only) ──
   if (!isTranslated && gapAnalysis.gaps.length > 0) {
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'Appendix: Gap Summary', bold: true, size: 28 })],
+      children: [new TextRun({ text: 'Appendix: Gap Summary', bold: true, size: TITLE_SIZE })],
       heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200 }
     }));
-
-    const rows = [
-      new TableRow({ children: ['Section', 'Severity', 'Action Required'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }),
-      ...gapAnalysis.gaps.map(g => new TableRow({ children: [g.targetSection, g.severity, g.suggestedAction].map(v => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v || '', size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }))
-    ];
-    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+    for (const g of gapAnalysis.gaps) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${g.targetSection}`, bold: true, size: BODY_SIZE }),
+          new TextRun({ text: ` [${g.severity}] `, size: BODY_SIZE, color: g.severity === 'high' ? 'CC0000' : 'FF8800' }),
+          new TextRun({ text: g.suggestedAction || '', size: BODY_SIZE, italics: true }),
+        ],
+        spacing: { after: 80 }
+      }));
+    }
   }
 
-  const doc = new Document({ sections: [{ children }] });
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } // 1 inch margins
+      },
+      children
+    }]
+  });
   const buffer = await Packer.toBuffer(doc);
   return buffer.toString('base64');
 }
