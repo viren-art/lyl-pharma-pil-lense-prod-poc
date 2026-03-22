@@ -67,9 +67,13 @@ export async function extractWithClaudeVision(document, options = {}) {
     // Merge sections that span across pages
     const mergedSections = mergeSectionsWithContinuation(result.sections);
 
-    // Validate critical sections (skip for market format docs)
-    if (!options.skipCriticalValidation) {
-      validateCriticalSections(mergedSections);
+    // Log extracted sections instead of hard-failing on missing English headings
+    // Pharmaceutical docs in Thai/Chinese/other languages won't have English section names
+    const sectionNames = mergedSections.map(s => s.sectionName);
+    console.info('[ClaudeVision] Extracted sections:', sectionNames);
+
+    if (mergedSections.length === 0) {
+      throw new Error('No sections extracted from document');
     }
 
     console.info('[ClaudeVision] Extraction complete', {
