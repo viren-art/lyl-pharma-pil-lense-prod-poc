@@ -23,7 +23,7 @@ try {
     generationConfig: {
       maxOutputTokens: 65536,
       temperature: 0.0,
-      responseMimeType: 'application/json',
+      // No responseMimeType — let Gemini output freely, we parse JSON from response
     },
   });
   console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}, location: ${GCP_LOCATION}`);
@@ -71,8 +71,31 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
       throw new Error('Gemini returned no candidates');
     }
 
-    const responseText = response.candidates[0].content.parts[0].text;
-    const parsed = JSON.parse(responseText);
+    let responseText = response.candidates[0].content.parts[0].text;
+
+    // Strip markdown code blocks if present
+    if (responseText.includes('```json')) {
+      responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    } else if (responseText.includes('```')) {
+      responseText = responseText.replace(/```\n?/g, '');
+    }
+    responseText = responseText.trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch (parseErr) {
+      // Try to extract JSON object from response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        console.error('[GeminiExtraction] Could not parse response:', responseText.substring(0, 500));
+        throw new Error('Failed to parse Gemini response as JSON');
+      }
+    }
+
+    console.log(`[GeminiExtraction] Raw response keys: ${Object.keys(parsed)}, sections: ${(parsed.sections || []).length}`);
 
     // Normalize to standard format
     const rawSections = parsed.sections || (Array.isArray(parsed) ? parsed : []);
@@ -121,7 +144,11 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
  * Build the extraction prompt for Gemini.
  */
 function buildGeminiExtractionPrompt(options = {}) {
-  return `You are a pharmaceutical regulatory document expert. This document may be an EPAR, SmPC, or PIL.
+  return `You are a pharmaceutical regulatory document expert extracting structured data from a regulatory document.
+
+IMPORTANT: Return a JSON object with a "sections" array containing ONE OBJECT PER SECTION. Each section MUST be a separate entry in the array. Do NOT merge all content into one section. A typical SmPC has 20-30 separate sections.
+
+This document may be an EPAR, SmPC, or PIL.
 
 CRITICAL: If this document contains BOTH a Summary of Product Characteristics (SmPC, detailed prescribing information, typically sections numbered 1-13 with subsections like 4.1-4.9, 5.1-5.3, 6.1-6.6) AND a Patient Information Leaflet (simplified consumer version at the end, typically "What X is and what it is used for"), extract from the SmPC (the DETAILED version), NOT the consumer PIL.
 
