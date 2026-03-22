@@ -1,4 +1,5 @@
 import { extractWithClaudeVision } from './claudeVision.js';
+import { isGeminiAvailable, extractPdfWithGemini } from './geminiExtraction.js';
 import { getDocumentById } from './documentManager.js';
 
 /**
@@ -61,8 +62,18 @@ export async function extractDocument(documentId, sessionId) {
     if (isWordDoc) {
       console.log(`[ExtractionRouter] Using mammoth for Word document extraction`);
       extractionResult = await extractWordWithMammoth(document);
+    } else if (isGeminiAvailable()) {
+      // Gemini: 1M context window — single call, no chunking, no truncation
+      console.log(`[ExtractionRouter] Using Gemini for PDF extraction (1M context)`);
+      try {
+        extractionResult = await extractPdfWithGemini(document.buffer);
+      } catch (geminiError) {
+        console.warn(`[ExtractionRouter] Gemini failed, falling back to Claude: ${geminiError.message}`);
+        extractionResult = await extractWithClaudeVision(document);
+      }
     } else {
-      console.log(`[ExtractionRouter] Using Claude Vision for PDF extraction`);
+      // Claude Vision: chunked extraction (200K context limit)
+      console.log(`[ExtractionRouter] Using Claude Vision for PDF extraction (chunked)`);
       extractionResult = await extractWithClaudeVision(document);
     }
 
@@ -71,7 +82,7 @@ export async function extractDocument(documentId, sessionId) {
     // Standardize result format
     const result = {
       documentId,
-      provider: isWordDoc ? 'mammoth' : 'claude_vision',
+      provider: isWordDoc ? 'mammoth' : (isGeminiAvailable() ? 'gemini' : 'claude_vision'),
       sections: extractionResult.sections,
       diagrams: extractionResult.diagrams || [],
       pageImages: extractionResult.pageImages || [],
