@@ -38,29 +38,56 @@ const WORKFLOW_TITLES = {
  * Backend responses vary by workflow, so we map fields accordingly.
  */
 function normalizeCreateDraftData(raw) {
+  // Map sectionMapping (new backend) or sectionAlignment (old) to UI format
+  const mapping = raw.sectionMapping || raw.sectionAlignment || [];
+  const sectionAlignment = mapping.map(a => {
+    // New backend format: { targetSection: { name, localName }, sourceSection: { sectionName }, mappingConfidence, status }
+    const target = typeof a.targetSection === 'object'
+      ? `${a.targetSection.name}${a.targetSection.localName ? ' (' + a.targetSection.localName + ')' : ''}`
+      : (a.targetSection || a.localMarketSection || '');
+    const source = a.sourceSection?.sectionName || a.innovatorSection || a.innovatorSectionName || 'NOT FOUND';
+    return {
+      targetSection: target,
+      innovatorSection: source,
+      confidence: a.mappingConfidence || a.confidence || 0,
+      notes: a.status || a.notes || a.alignmentStatus || '',
+      pages: a.sourceSection?.pageReferences || a.pageReferences || a.pages || [],
+    };
+  });
+
+  // Map gapAnalysis (new backend) or gaps (old) to UI format
+  const gapData = raw.gapAnalysis || raw.gaps || {};
+  const missingGaps = (gapData.gaps || gapData.missing || gapData.missingSections || []).map(g => ({
+    section: g.targetSection || g.section || g.sectionName || '',
+    reason: g.suggestedAction || g.reason || g.description || '',
+    severity: g.severity || g.priority || 'major',
+  }));
+  const unmapped = (gapData.unmappedSources || []).map(u => ({
+    section: u.sectionName || '',
+    elements: [u.suggestedAction || 'Content may need restructuring'],
+    severity: 'minor',
+    pages: [],
+  }));
+
   return {
-    documentsProcessed: raw.documentsProcessed || 3,
+    documentsProcessed: raw.extractionResults?.length || raw.documentsProcessed || 3,
     executionTime: formatTime(raw.executionTimeMs),
-    sectionAlignment: (raw.sectionAlignment || []).map(a => ({
-      targetSection: a.targetSection || a.localMarketSection || '',
-      innovatorSection: a.innovatorSection || a.innovatorSectionName || 'NOT_FOUND',
-      confidence: a.confidence || a.mappingConfidence || 0,
-      notes: a.notes || a.alignmentStatus || '',
-      pages: a.pageReferences || a.pages || [],
-    })),
+    sectionAlignment,
     gaps: {
-      missing: (raw.gaps?.missing || raw.gaps?.missingSections || []).map(g => ({
-        section: g.section || g.sectionName || '',
-        reason: g.reason || g.description || '',
-        severity: g.severity || g.priority || 'major',
-      })),
-      incomplete: (raw.gaps?.incomplete || raw.gaps?.incompleteContent || []).map(g => ({
+      missing: missingGaps,
+      incomplete: (gapData.incomplete || gapData.incompleteContent || unmapped || []).map(g => ({
         section: g.section || g.sectionName || '',
         elements: g.elements || g.missingElements || [],
         severity: g.severity || 'major',
         pages: g.pages || g.pageReferences || [],
       })),
     },
+    // Extra data from new backend
+    diagrams: raw.diagramCarryover || [],
+    crossRefReport: raw.crossRefReport || null,
+    translationChecklist: raw.translationChecklist || [],
+    marketTemplate: raw.marketTemplate || null,
+    structuredDraft: raw.structuredDraft || null,
   };
 }
 
@@ -137,19 +164,36 @@ function formatTime(ms) {
 
 function CreateDraftResults({ data }) {
   const [tab, setTab] = useState('alignment');
+  const diagramCount = (data.diagrams || []).length;
+  const translationCount = (data.translationChecklist || []).length;
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      {/* Market template info */}
+      {data.marketTemplate && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm">
+          <span className="font-semibold text-blue-800">Target Market:</span>{' '}
+          <span className="text-blue-700">{data.marketTemplate.marketName || data.marketTemplate.marketCode}</span>
+          <span className="text-blue-500 ml-2">({data.marketTemplate.language})</span>
+          <span className="text-blue-400 ml-2">• {data.marketTemplate.sectionCount} sections • Source: {data.marketTemplate.source}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-4 md:grid-cols-5">
         <Stat label="Documents Processed" value={data.documentsProcessed} />
-        <Stat label="Sections Aligned" value={data.sectionAlignment.length} />
+        <Stat label="Sections Mapped" value={data.sectionAlignment.length} />
         <Stat label="Gaps Found" value={data.gaps.missing.length + data.gaps.incomplete.length} accent="text-orange-600" />
+        <Stat label="Diagrams" value={diagramCount} />
+        <Stat label="Translation Items" value={translationCount} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 overflow-x-auto">
           {[
-            { id: 'alignment', label: 'Section Alignment', count: data.sectionAlignment.length },
+            { id: 'alignment', label: 'Section Mapping', count: data.sectionAlignment.length },
             { id: 'gaps', label: 'Gap Analysis', count: data.gaps.missing.length + data.gaps.incomplete.length },
+            ...(diagramCount > 0 ? [{ id: 'diagrams', label: 'Diagrams', count: diagramCount }] : []),
+            ...(translationCount > 0 ? [{ id: 'translation', label: 'Translation', count: translationCount }] : []),
           ].map(t => (
             <button
               key={t.id}
@@ -227,6 +271,57 @@ function CreateDraftResults({ data }) {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === 'diagrams' && (
+            <div className="space-y-3">
+              {(data.diagrams || []).map((d, i) => (
+                <div key={i} className="rounded-lg border border-gray-100 p-4 hover:bg-gray-50/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 mr-2">
+                        {d.type?.replace('_', ' ')}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900">{d.description}</span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Page {d.pageNumber} • Target section: {d.targetSection || d.relatedSection || 'N/A'}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-400">carry over</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === 'translation' && (
+            <div className="space-y-3">
+              {(data.translationChecklist || []).map((t, i) => (
+                <div key={i} className="rounded-lg border border-gray-100 p-4 hover:bg-gray-50/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">{t.section}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{t.localName}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {t.sourceLanguage} → {t.targetLanguage} • {t.wordCount} words
+                      </p>
+                      {t.preservationNotes?.length > 0 && (
+                        <ul className="mt-2 space-y-0.5">
+                          {t.preservationNotes.map((n, j) => (
+                            <li key={j} className="text-xs text-amber-600">⚠ {n}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <span className={`inline-flex px-2.5 py-1 rounded text-xs font-medium border ${
+                      t.complexity === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
+                      t.complexity === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>{t.complexity}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
