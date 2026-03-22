@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -485,6 +485,7 @@ async function getBrowserInstance() {
   if (!browserInstance) {
     console.log('[AWGenerator] Creating new browser instance with performance optimizations');
     browserInstance = await puppeteer.launch({
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       headless: 'new',
       args: [
         '--no-sandbox',
