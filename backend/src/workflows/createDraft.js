@@ -4,7 +4,7 @@ import { getTemplate } from '../services/marketTemplates.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-const HAIKU_MODEL = 'claude-3-5-haiku-20241022'; // Cheap + fast for mapping
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001'; // Cheap + fast for mapping/translation
 const SONNET_MODEL = 'claude-sonnet-4-20250514'; // Higher quality for translation
 
 /**
