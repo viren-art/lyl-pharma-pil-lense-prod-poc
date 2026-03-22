@@ -668,6 +668,24 @@ export default function ResultsPage() {
         </div>
       </div>
 
+      {/* Download button for Create PIL Draft */}
+      {workflowType === 'create_draft' && rawResult.docxBase64 && (
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              const link = document.createElement('a');
+              link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${rawResult.docxBase64}`;
+              link.download = `PIL_Draft_${new Date().toISOString().split('T')[0]}.docx`;
+              link.click();
+            }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-lotus-500 hover:bg-lotus-600 text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Download Draft PIL (.docx)
+          </button>
+        </div>
+      )}
+
       {/* Conditional rendering based on workflow type */}
       {workflowType === 'create_draft' && <CreateDraftResults data={data} />}
       {workflowType === 'assess_variation' && <AssessVariationResults data={data} />}

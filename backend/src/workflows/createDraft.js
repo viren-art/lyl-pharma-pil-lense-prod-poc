@@ -1,28 +1,31 @@
 import { extractDocument } from '../services/extractionRouter.js';
 import { getDocumentById } from '../services/documentManager.js';
 import { getTemplate } from '../services/marketTemplates.js';
+import Anthropic from '@anthropic-ai/sdk';
+
+const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+const HAIKU_MODEL = 'claude-3-5-haiku-20241022'; // Cheap + fast for mapping
 
 /**
  * Create PIL Draft Workflow
  *
- * Sequence (per spec):
- * a) Extract sections from Innovator PIL (English source of truth)
- * b) Load target market section template (learned or default)
- * c) Map extracted English sections to target market format
- * d) Identify gaps (sections required by market but missing from source)
- * e) Identify diagrams that need to be carried over
- * f) Generate cross-reference resolved content
- * g) Return structured draft in TARGET MARKET SECTION ORDER, still in English
+ * Steps:
+ * A) Extract sections from Innovator PIL (English source of truth)
+ * B) Load target market section template (learned or default)
+ * C) Use Claude to SEMANTICALLY map English content to target sections
+ * D) Identify gaps (required by market but no source content)
+ * E) Identify diagrams to carry over
+ * F) Cross-reference verification
+ * G) Build structured draft in target market section order
+ * H) Generate downloadable Word document (.docx)
  *
- * Output: English content reorganized into local market format, with gap analysis,
- * diagram references, cross-references resolved, and translation checklist.
- * NOT a translated document. Structure first, translate later.
+ * Output: English content reorganized into local market format.
+ * NOT translated. Structure first, translate later.
  */
 export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourceId, marketFormatId, sessionId) {
   const startTime = Date.now();
 
   try {
-    // Validate required documents
     const innovatorDoc = getDocumentById(innovatorPilId);
     if (!innovatorDoc) throw new Error(`Innovator PIL document not found: ${innovatorPilId}`);
 
@@ -32,11 +35,9 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
     // ── Step A: Extract sections from Innovator PIL ──
     console.log('[CreateDraft] Step A: Extracting Innovator PIL');
     const innovatorExtraction = await extractDocument(innovatorPilId, sessionId);
-
     const innovatorSections = innovatorExtraction.sections || [];
     const innovatorDiagrams = innovatorExtraction.diagrams || [];
 
-    // Extract regulatory source if provided
     let regulatorySections = [];
     if (regulatoryDoc) {
       console.log('[CreateDraft] Extracting Regulatory Source');
@@ -49,103 +50,82 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
     let marketTemplate = null;
     let marketCode = null;
 
-    // If a market format document was uploaded, try to learn from it
     if (marketFormatDoc) {
-      // Check if it's a known market type based on product name or document name
       marketCode = detectMarketCode(marketFormatDoc);
-
-      // Try to learn template from document if Claude API is available
       try {
         const { learnTemplateFromDocument } = await import('../services/marketTemplates.js');
-        marketTemplate = await learnTemplateFromDocument(
-          marketFormatDoc,
-          marketCode || 'custom_market',
-          marketFormatDoc.name
-        );
-        console.log(`[CreateDraft] Learned template from ${marketFormatDoc.name}: ${marketTemplate.sections.length} sections`);
+        marketTemplate = await learnTemplateFromDocument(marketFormatDoc, marketCode || 'custom_market', marketFormatDoc.name);
+        console.log(`[CreateDraft] Learned template: ${marketTemplate.sections.length} sections`);
       } catch (e) {
-        console.warn('[CreateDraft] Could not learn template, falling back to extraction:', e.message);
-        // Fall back to extracting the document
-        const mfExtraction = await extractDocument(marketFormatId, sessionId);
-        marketTemplate = buildTemplateFromExtraction(mfExtraction.sections, marketCode || 'custom_market');
+        console.warn('[CreateDraft] Template learning failed, using extraction:', e.message);
       }
     }
 
-    // If no template from document, try loading existing template by market code
     if (!marketTemplate && marketCode) {
       marketTemplate = getTemplate(marketCode);
     }
-
-    // Fall back to generic template if nothing found
     if (!marketTemplate) {
-      // Default to Thailand FDA as most common for Lotus
-      marketTemplate = getTemplate('thailand_fda') || getTemplate('taiwan_tfda');
+      marketTemplate = getTemplate('taiwan_tfda') || getTemplate('thailand_fda');
     }
 
     const targetSections = marketTemplate?.sections || [];
     console.log(`[CreateDraft] Using template: ${marketTemplate?.marketCode || 'generic'} (${targetSections.length} sections)`);
 
-    // ── Step C: Map extracted English sections to target market format ──
-    console.log('[CreateDraft] Step C: Mapping sections to target market format');
-    const sectionMapping = mapSectionsToMarketFormat(innovatorSections, targetSections);
+    // ── Step C: Semantic section mapping via Claude ──
+    console.log('[CreateDraft] Step C: Semantic section mapping via Claude');
+    const sectionMapping = await semanticSectionMapping(innovatorSections, targetSections, marketTemplate);
 
     // ── Step D: Gap analysis ──
     console.log('[CreateDraft] Step D: Gap analysis');
-    const gapAnalysis = analyzeGapsAgainstTemplate(innovatorSections, targetSections, regulatorySections);
+    const gapAnalysis = buildGapAnalysis(sectionMapping, targetSections);
 
-    // ── Step E: Identify diagrams to carry over ──
-    console.log('[CreateDraft] Step E: Diagram carryover analysis');
-    const diagramCarryover = innovatorDiagrams.map(diagram => ({
-      ...diagram,
-      targetSection: findTargetSection(diagram.relatedSection, sectionMapping),
-      action: 'carry_over',
-      note: 'Diagram must be included in target market document'
+    // ── Step E: Diagram carryover ──
+    console.log('[CreateDraft] Step E: Diagram carryover');
+    const diagramCarryover = innovatorDiagrams.map(d => ({
+      ...d,
+      targetSection: findTargetForDiagram(d.relatedSection, sectionMapping),
+      action: 'carry_over'
     }));
 
-    // ── Step F: Cross-reference resolution verification ──
+    // ── Step F: Cross-reference verification ──
     console.log('[CreateDraft] Step F: Cross-reference verification');
     const crossRefReport = verifyCrossReferences(innovatorSections);
 
-    // ── Step G: Build structured draft in TARGET MARKET SECTION ORDER ──
+    // ── Step G: Build structured draft ──
     console.log('[CreateDraft] Step G: Building structured draft');
-    const structuredDraft = buildStructuredDraft(sectionMapping, targetSections, marketTemplate);
+    const structuredDraft = buildStructuredDraft(sectionMapping, marketTemplate);
 
-    // Generate translation checklist
-    const translationChecklist = generateTranslationChecklist(
-      sectionMapping,
-      targetSections,
-      marketTemplate?.language || 'Unknown'
-    );
+    // ── Step H: Generate Word document ──
+    console.log('[CreateDraft] Step H: Generating Word document');
+    let docxBase64 = null;
+    try {
+      docxBase64 = await generateDraftDocx(structuredDraft, gapAnalysis, sectionMapping, marketTemplate, innovatorDoc.productName);
+    } catch (e) {
+      console.error('[CreateDraft] Word doc generation failed:', e.message);
+    }
 
-    // Identify special attention items
-    const specialAttentionFlags = identifySpecialAttentionItems(innovatorSections);
+    // Translation checklist
+    const translationChecklist = buildTranslationChecklist(sectionMapping, marketTemplate);
 
     const executionTimeMs = Date.now() - startTime;
-
     console.log('[CreateDraft] Workflow completed', {
       executionTimeMs,
-      mappedSections: sectionMapping.length,
+      mappedSections: sectionMapping.filter(m => m.sourceContent).length,
       gaps: gapAnalysis.gaps.length,
       diagrams: diagramCarryover.length,
-      crossRefsResolved: crossRefReport.resolvedCount
+      hasDocx: !!docxBase64
     });
 
     return {
       workflowId: `draft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       workflowType: 'create_draft',
-
-      // Core output: English content in target market order
       structuredDraft,
-
-      // Analysis results
       sectionMapping,
       gapAnalysis,
       diagramCarryover,
       crossRefReport,
       translationChecklist,
-      specialAttentionFlags,
-
-      // Template used
+      docxBase64,
       marketTemplate: {
         marketCode: marketTemplate?.marketCode,
         marketName: marketTemplate?.marketName,
@@ -153,294 +133,159 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
         source: marketTemplate?.source,
         sectionCount: targetSections.length
       },
-
-      // Extraction details
-      extractionResults: [
-        {
-          documentId: innovatorPilId,
-          documentName: innovatorDoc.name,
-          provider: innovatorExtraction.provider,
-          sections: innovatorSections,
-          diagrams: innovatorDiagrams,
-          pageImages: innovatorExtraction.pageImages,
-          processingTimeMs: innovatorExtraction.processingTimeMs
-        },
-        ...(regulatoryDoc ? [{
-          documentId: regulatorySourceId,
-          documentName: regulatoryDoc.name,
-          sections: regulatorySections,
-          pageImages: []
-        }] : [])
-      ],
-
+      extractionResults: [{
+        documentId: innovatorPilId,
+        documentName: innovatorDoc.name,
+        provider: innovatorExtraction.provider,
+        sections: innovatorSections,
+        diagrams: innovatorDiagrams,
+        pageImages: innovatorExtraction.pageImages,
+        processingTimeMs: innovatorExtraction.processingTimeMs
+      }],
       executionTimeMs,
       executedDate: new Date().toISOString()
     };
 
   } catch (error) {
-    console.error('[CreateDraft] Workflow failed', {
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('[CreateDraft] Workflow failed', { error: error.message });
     throw error;
   }
 }
 
 /**
- * Detect market code from document metadata
+ * Step C: Use Claude to semantically map source sections to target sections.
+ * One source section may map to MULTIPLE targets. Some targets may have no match.
  */
-function detectMarketCode(doc) {
-  const name = (doc.name + ' ' + (doc.productName || '')).toLowerCase();
-  if (name.includes('thailand') || name.includes('thai') || name.includes('อย.')) return 'thailand_fda';
-  if (name.includes('taiwan') || name.includes('tfda') || name.includes('衛福部')) return 'taiwan_tfda';
-  return null;
-}
+async function semanticSectionMapping(sourceSections, targetSections, marketTemplate) {
+  if (!CLAUDE_API_KEY || sourceSections.length === 0 || targetSections.length === 0) {
+    console.warn('[CreateDraft] Skipping Claude mapping — using fallback');
+    return fallbackMapping(sourceSections, targetSections);
+  }
 
-/**
- * Build a template from extracted sections (fallback when Claude learning unavailable)
- */
-function buildTemplateFromExtraction(sections, marketCode) {
-  return {
-    marketCode,
-    marketName: marketCode,
-    language: 'Unknown',
-    isDefault: false,
-    source: 'extracted',
-    lastUpdated: new Date().toISOString(),
-    sections: sections.map((s, i) => ({
-      number: String(i + 1),
-      name: s.sectionName,
-      localName: s.sectionName,
-      required: true,
-      subsections: []
-    }))
-  };
-}
+  const sourceList = sourceSections.map((s, i) => `${i + 1}. "${s.sectionName}" — ${s.content.substring(0, 200)}...`).join('\n');
+  const targetList = targetSections.map((t, i) => `${i + 1}. ${t.name}${t.localName ? ' (' + t.localName + ')' : ''}`).join('\n');
 
-/**
- * Map innovator PIL sections to target market format
- */
-function mapSectionsToMarketFormat(innovatorSections, targetSections) {
-  const mapping = [];
+  const prompt = `You are a pharmaceutical regulatory expert. Map source document sections to target market sections by MEANING, not by name.
 
-  for (const target of targetSections) {
-    // Find best matching innovator section by name similarity
-    const match = findBestMatch(target, innovatorSections);
+SOURCE SECTIONS (from Innovator PIL, English):
+${sourceList}
 
-    mapping.push({
-      targetSection: {
-        number: target.number,
-        name: target.name,
-        localName: target.localName
-      },
-      sourceSection: match ? {
-        sectionName: match.section.sectionName,
-        content: match.section.content,
-        pageReferences: match.section.pageReferences,
-        confidenceScore: match.section.confidenceScore,
-        flags: match.section.flags
-      } : null,
-      mappingConfidence: match ? match.confidence : 0,
-      status: match ? (match.confidence >= 0.7 ? 'mapped' : 'needs_review') : 'missing',
-      subsectionMapping: target.subsections?.map(sub => {
-        const subMatch = findBestMatchForSubsection(sub, match?.section);
-        return {
-          targetSubsection: { number: sub.number, name: sub.name, localName: sub.localName },
-          sourceContent: subMatch || null,
-          status: subMatch ? 'mapped' : 'missing'
-        };
-      }) || []
+TARGET SECTIONS (${marketTemplate?.marketName || 'target market'} template):
+${targetList}
+
+RULES:
+- One source section may map to MULTIPLE targets (e.g., "What you need to know before taking" contains contraindications, warnings, drug interactions, and special populations — split across targets)
+- Some targets may have NO source match — mark as gap with a note about what document would provide this (e.g., SmPC for pharmacology data)
+- For each mapping, specify which PART of the source section is relevant
+- Return confidence 0.0-1.0 for each mapping
+
+Return ONLY a JSON array (no markdown), one entry per target section:
+[
+  {
+    "targetIndex": 0,
+    "targetName": "exact target section name",
+    "sourceIndex": 1 or null if no match,
+    "sourceName": "exact source section name" or null,
+    "confidence": 0.85,
+    "extractInstruction": "Extract the subsection about indications/what the medicine is used for" or null,
+    "gapNote": null or "Not in consumer PIL — needs Summary of Product Characteristics (SmPC)"
+  }
+]`;
+
+  try {
+    const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }]
     });
-  }
 
-  return mapping;
-}
+    let text = response.content[0].text.trim();
+    if (text.startsWith('```')) text = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
+    const mappings = JSON.parse(text);
 
-/**
- * Find best matching section by name
- */
-function findBestMatch(target, sections) {
-  const targetTerms = normalizeForMatching(target.name);
+    console.log(`[CreateDraft] Claude mapped ${mappings.filter(m => m.sourceIndex !== null).length}/${targetSections.length} sections`);
 
-  let bestMatch = null;
-  let bestConfidence = 0;
-
-  for (const section of sections) {
-    const sectionTerms = normalizeForMatching(section.sectionName);
-    const confidence = calculateMatchConfidence(targetTerms, sectionTerms);
-
-    if (confidence > bestConfidence && confidence > 0.3) {
-      bestMatch = section;
-      bestConfidence = confidence;
-    }
-  }
-
-  return bestMatch ? { section: bestMatch, confidence: bestConfidence } : null;
-}
-
-/**
- * Find content within a section that matches a subsection
- */
-function findBestMatchForSubsection(subsection, parentSection) {
-  if (!parentSection) return null;
-
-  const terms = normalizeForMatching(subsection.name);
-  const content = parentSection.content.toLowerCase();
-
-  // Check if any key terms appear in the content
-  const matchCount = terms.filter(t => content.includes(t)).length;
-  if (matchCount > 0 && matchCount >= terms.length * 0.3) {
-    return parentSection.content;
-  }
-  return null;
-}
-
-/**
- * Normalize section name for matching
- */
-function normalizeForMatching(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(t => t.length > 2 && !['and', 'the', 'for', 'this', 'that', 'with'].includes(t));
-}
-
-/**
- * Calculate match confidence between two term lists
- */
-function calculateMatchConfidence(terms1, terms2) {
-  if (terms1.length === 0 || terms2.length === 0) return 0;
-
-  let matches = 0;
-  for (const t1 of terms1) {
-    if (terms2.some(t2 => t1.includes(t2) || t2.includes(t1))) {
-      matches++;
-    }
-  }
-
-  return matches / Math.max(terms1.length, terms2.length);
-}
-
-/**
- * Analyze gaps between innovator content and target market requirements
- */
-function analyzeGapsAgainstTemplate(innovatorSections, targetSections, regulatorySections) {
-  const gaps = [];
-
-  for (const target of targetSections) {
-    if (!target.required) continue;
-
-    const match = findBestMatch(target, innovatorSections);
-
-    if (!match) {
-      // Check if regulatory source has it
-      const regMatch = findBestMatch(target, regulatorySections);
-
-      gaps.push({
-        targetSection: target.name,
-        targetLocalName: target.localName,
-        gapType: 'missing_from_innovator',
-        severity: isCriticalSection(target.name) ? 'high' : 'medium',
-        suggestedAction: regMatch
-          ? 'Content may be available in regulatory source document — review and adapt'
-          : 'Section must be authored from scratch — requires regulatory team input',
-        hasRegulatorySource: !!regMatch
-      });
-    } else if (match.confidence < 0.7) {
-      gaps.push({
-        targetSection: target.name,
-        targetLocalName: target.localName,
-        gapType: 'low_confidence_mapping',
-        severity: 'medium',
-        mappingConfidence: match.confidence,
-        suggestedAction: 'Review mapping — content may not align well with target section requirements'
-      });
-    }
-  }
-
-  // Check for innovator sections with no target equivalent
-  const unmappedSources = [];
-  for (const section of innovatorSections) {
-    const hasTarget = targetSections.some(target => {
-      const match = findBestMatch(target, [section]);
-      return match && match.confidence > 0.3;
+    // Enrich with actual content
+    return mappings.map(m => {
+      const source = m.sourceIndex !== null ? sourceSections[m.sourceIndex] : null;
+      const target = targetSections[m.targetIndex] || targetSections.find(t => t.name === m.targetName);
+      return {
+        targetSection: {
+          number: target?.number || String(m.targetIndex + 1),
+          name: target?.name || m.targetName,
+          localName: target?.localName || ''
+        },
+        sourceSection: source ? {
+          sectionName: source.sectionName,
+          pageReferences: source.pageReferences,
+          confidenceScore: source.confidenceScore
+        } : null,
+        sourceContent: source ? source.content : null,
+        extractInstruction: m.extractInstruction || null,
+        mappingConfidence: m.confidence || 0,
+        status: source ? 'mapped' : 'gap',
+        gapNote: m.gapNote || null
+      };
     });
-    if (!hasTarget) {
-      unmappedSources.push({
-        sectionName: section.sectionName,
-        gapType: 'no_target_equivalent',
-        suggestedAction: 'Content may need to be restructured into existing target sections'
-      });
-    }
+
+  } catch (error) {
+    console.error('[CreateDraft] Claude mapping failed, using fallback:', error.message);
+    return fallbackMapping(sourceSections, targetSections);
   }
+}
+
+/**
+ * Fallback mapping when Claude is unavailable
+ */
+function fallbackMapping(sourceSections, targetSections) {
+  return targetSections.map(target => ({
+    targetSection: { number: target.number, name: target.name, localName: target.localName || '' },
+    sourceSection: null,
+    sourceContent: null,
+    extractInstruction: null,
+    mappingConfidence: 0,
+    status: 'gap',
+    gapNote: 'Automatic mapping unavailable — requires manual review'
+  }));
+}
+
+/**
+ * Step D: Build gap analysis from mapping results
+ */
+function buildGapAnalysis(sectionMapping, targetSections) {
+  const gaps = sectionMapping
+    .filter(m => m.status === 'gap')
+    .map(m => ({
+      targetSection: m.targetSection.name,
+      targetLocalName: m.targetSection.localName,
+      gapType: 'missing_from_source',
+      severity: isCriticalSection(m.targetSection.name) ? 'high' : 'medium',
+      suggestedAction: m.gapNote || 'Content needs to be sourced from SmPC or other regulatory documents',
+    }));
+
+  const mapped = sectionMapping.filter(m => m.status === 'mapped');
+  const totalRequired = targetSections.filter(t => t.required !== false).length;
 
   return {
     gaps,
-    unmappedSources,
-    totalRequired: targetSections.filter(t => t.required).length,
-    totalMapped: targetSections.filter(t => t.required).length - gaps.filter(g => g.gapType === 'missing_from_innovator').length,
-    completeness: targetSections.filter(t => t.required).length > 0
-      ? ((targetSections.filter(t => t.required).length - gaps.filter(g => g.gapType === 'missing_from_innovator').length) / targetSections.filter(t => t.required).length * 100).toFixed(1) + '%'
+    totalRequired,
+    totalMapped: mapped.length,
+    completeness: totalRequired > 0
+      ? ((mapped.length / totalRequired) * 100).toFixed(1) + '%'
       : 'N/A'
   };
 }
 
-/**
- * Check if a section name is safety-critical
- */
 function isCriticalSection(name) {
-  const critical = ['dosage', 'contraindication', 'warning', 'precaution', 'active ingredient', 'adverse'];
+  const critical = ['dosage', 'contraindication', 'warning', 'precaution', 'active ingredient', 'adverse', 'indications'];
   return critical.some(c => name.toLowerCase().includes(c));
 }
 
 /**
- * Find which target section a diagram should map to
+ * Step G: Build structured draft
  */
-function findTargetSection(relatedSection, sectionMapping) {
-  if (!relatedSection) return null;
-  const mapping = sectionMapping.find(m =>
-    m.sourceSection?.sectionName === relatedSection
-  );
-  return mapping?.targetSection?.name || relatedSection;
-}
-
-/**
- * Verify cross-references have been resolved in extracted content
- */
-function verifyCrossReferences(sections) {
-  const unresolvedRefs = [];
-  let resolvedCount = 0;
-
-  const refPattern = /(?:see|refer to|as described in|listed in|per|according to)\s+(?:section|annex|annexure|appendix|table)\s+[\d.]+/gi;
-
-  for (const section of sections) {
-    if (section.flags?.crossRefResolved) {
-      resolvedCount++;
-    }
-
-    const matches = section.content.match(refPattern);
-    if (matches) {
-      unresolvedRefs.push({
-        section: section.sectionName,
-        references: matches,
-        pageReferences: section.pageReferences
-      });
-    }
-  }
-
-  return {
-    resolvedCount,
-    unresolvedCount: unresolvedRefs.length,
-    unresolvedRefs,
-    isFullyResolved: unresolvedRefs.length === 0
-  };
-}
-
-/**
- * Build structured draft in target market section order
- */
-function buildStructuredDraft(sectionMapping, targetSections, marketTemplate) {
+function buildStructuredDraft(sectionMapping, marketTemplate) {
   return {
     marketCode: marketTemplate?.marketCode || 'custom',
     marketName: marketTemplate?.marketName || 'Custom Market',
@@ -450,98 +295,228 @@ function buildStructuredDraft(sectionMapping, targetSections, marketTemplate) {
       number: m.targetSection.number,
       targetName: m.targetSection.name,
       targetLocalName: m.targetSection.localName,
-      content: m.sourceSection?.content || '[MISSING — Requires authoring]',
+      content: m.sourceContent || null,
       status: m.status,
-      confidenceScore: m.sourceSection?.confidenceScore || 0,
+      confidence: m.mappingConfidence,
       sourceSection: m.sourceSection?.sectionName || null,
-      subsections: m.subsectionMapping?.map(sub => ({
-        number: sub.targetSubsection.number,
-        targetName: sub.targetSubsection.name,
-        targetLocalName: sub.targetSubsection.localName,
-        content: sub.sourceContent || '[MISSING]',
-        status: sub.status
-      })) || []
-    })),
-    mandatoryFooter: marketTemplate?.mandatoryFooter || {}
+      extractInstruction: m.extractInstruction,
+      gapNote: m.gapNote
+    }))
   };
 }
 
 /**
- * Generate translation checklist
+ * Step H: Generate Word document (.docx) with mapped content
  */
-function generateTranslationChecklist(sectionMapping, targetSections, targetLanguage) {
-  return sectionMapping
-    .filter(m => m.sourceSection)
-    .map(m => {
-      const content = m.sourceSection.content || '';
-      const hasDosageData = /\d+\s*mg|\d+\s*ml|\d+\s*%/i.test(content);
-      const hasChemicalTerms = /[A-Z][a-z]?[₀-₉]+|molecular|formula/i.test(content);
-      const hasTable = content.includes('|') && (content.match(/\|/g) || []).length > 4;
+async function generateDraftDocx(structuredDraft, gapAnalysis, sectionMapping, marketTemplate, productName) {
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, BorderStyle, WidthType, Packer } = await import('docx');
 
-      let complexity = 'low';
-      if (hasDosageData || hasChemicalTerms) complexity = 'high';
-      else if (content.length > 500 || hasTable) complexity = 'medium';
+  const children = [];
 
-      return {
-        section: m.targetSection.name,
-        localName: m.targetSection.localName,
-        sourceLanguage: 'English',
-        targetLanguage,
-        complexity,
-        specialTerms: extractSpecialTerms(content),
-        preservationNotes: [
-          hasDosageData && 'Dosage values must be preserved exactly',
-          hasChemicalTerms && 'Chemical names and formulas must not be translated',
-          hasTable && 'Table structure must be maintained'
-        ].filter(Boolean),
-        wordCount: content.split(/\s+/).length
-      };
+  // Title
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'DRAFT PIL — FOR REVIEW ONLY', bold: true, size: 32, color: 'CC0000' })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 200 }
+  }));
+  children.push(new Paragraph({
+    children: [new TextRun({ text: `Product: ${productName || 'N/A'}`, size: 24 })],
+    alignment: AlignmentType.CENTER
+  }));
+  children.push(new Paragraph({
+    children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} (${marketTemplate?.language || 'N/A'})`, size: 20, color: '666666' })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 400 }
+  }));
+  children.push(new Paragraph({
+    children: [new TextRun({ text: `Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness} | English content — translation pending`, size: 18, color: '999999', italics: true })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 600 }
+  }));
+
+  // Sections in target market order
+  for (const mapping of sectionMapping) {
+    const sectionTitle = `${mapping.targetSection.number}. ${mapping.targetSection.name}`;
+    const localName = mapping.targetSection.localName ? ` (${mapping.targetSection.localName})` : '';
+
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: sectionTitle, bold: true, size: 26 }),
+        new TextRun({ text: localName, size: 22, color: '666666' }),
+      ],
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 400, after: 100 }
+    }));
+
+    if (mapping.status === 'mapped' && mapping.sourceContent) {
+      // Source reference
+      children.push(new Paragraph({
+        children: [new TextRun({ text: `Source: ${mapping.sourceSection?.sectionName || 'Innovator PIL'} (${(mapping.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
+        spacing: { after: 100 }
+      }));
+      if (mapping.extractInstruction) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `Note: ${mapping.extractInstruction}`, size: 16, color: '0066CC', italics: true })],
+          spacing: { after: 100 }
+        }));
+      }
+      // Content paragraphs
+      const lines = mapping.sourceContent.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: line, size: 20 })],
+          spacing: { after: 60 }
+        }));
+      }
+    } else {
+      // Gap placeholder
+      children.push(new Paragraph({
+        children: [new TextRun({ text: '[CONTENT GAP — NOT AVAILABLE IN SOURCE DOCUMENT]', bold: true, size: 20, color: 'CC0000' })],
+        spacing: { after: 60 }
+      }));
+      if (mapping.gapNote) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: mapping.gapNote, size: 18, color: 'CC0000', italics: true })],
+          spacing: { after: 100 }
+        }));
+      }
+    }
+  }
+
+  // Gap Summary Table
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Gap Summary', bold: true, size: 28 })],
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 600, after: 200 }
+  }));
+
+  if (gapAnalysis.gaps.length > 0) {
+    const headerRow = new TableRow({
+      children: ['Section', 'Severity', 'Action Required'].map(h =>
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })],
+          width: { size: 33, type: WidthType.PERCENTAGE }
+        })
+      )
     });
-}
 
-/**
- * Extract pharmaceutical special terms from content
- */
-function extractSpecialTerms(content) {
-  const terms = [];
-  // Match chemical-looking terms (capitalized words with numbers/special chars)
-  const chemPattern = /\b[A-Z][a-z]*(?:one|ine|ate|ide|ase|ol|il|um)\b/g;
-  const matches = content.match(chemPattern);
-  if (matches) {
-    terms.push(...[...new Set(matches)].slice(0, 10));
+    const dataRows = gapAnalysis.gaps.map(g =>
+      new TableRow({
+        children: [g.targetSection, g.severity, g.suggestedAction].map(val =>
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: val || '', size: 18 })] })],
+            width: { size: 33, type: WidthType.PERCENTAGE }
+          })
+        )
+      })
+    );
+
+    children.push(new Table({ rows: [headerRow, ...dataRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
+  } else {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'No gaps identified — all target sections have source content.', size: 20, color: '008800' })]
+    }));
   }
-  return terms;
+
+  // Translation Checklist
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Translation Checklist', bold: true, size: 28 })],
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 600, after: 200 }
+  }));
+
+  const translationRows = sectionMapping.filter(m => m.sourceContent).map(m => {
+    const wordCount = m.sourceContent.split(/\s+/).length;
+    return new TableRow({
+      children: [
+        m.targetSection.name,
+        m.targetSection.localName || '—',
+        String(wordCount),
+        marketTemplate?.language || 'Traditional Chinese',
+        'Pending'
+      ].map(val =>
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: val, size: 16 })] })],
+          width: { size: 20, type: WidthType.PERCENTAGE }
+        })
+      )
+    });
+  });
+
+  if (translationRows.length > 0) {
+    const tlHeader = new TableRow({
+      children: ['Section', 'Local Name', 'Words', 'Target Language', 'Status'].map(h =>
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16 })] })],
+          width: { size: 20, type: WidthType.PERCENTAGE }
+        })
+      )
+    });
+    children.push(new Table({ rows: [tlHeader, ...translationRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
+  }
+
+  const doc = new Document({
+    sections: [{ children }]
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  return buffer.toString('base64');
 }
 
 /**
- * Identify special attention items
+ * Build translation checklist for frontend
  */
-function identifySpecialAttentionItems(sections) {
-  const flags = [];
-  const dosageKeywords = ['dosage', 'dose', 'mg/kg', 'mg/m²', 'administration schedule', 'once daily', 'twice daily'];
-  const chemicalKeywords = ['chemical formula', 'molecular formula', 'structural formula', 'molecular weight', 'CAS number'];
+function buildTranslationChecklist(sectionMapping, marketTemplate) {
+  return sectionMapping
+    .filter(m => m.sourceContent)
+    .map(m => ({
+      section: m.targetSection.name,
+      localName: m.targetSection.localName || '',
+      sourceLanguage: 'English',
+      targetLanguage: marketTemplate?.language || 'Traditional Chinese',
+      wordCount: m.sourceContent.split(/\s+/).length,
+      complexity: estimateComplexity(m.sourceContent),
+      status: 'Pending translation',
+      preservationNotes: getPreservationNotes(m.sourceContent)
+    }));
+}
 
+function estimateComplexity(content) {
+  if (/\d+\s*(mg|mcg|ml|g|iu)\b/i.test(content)) return 'high';
+  if (/[A-Z][a-z]?[₀-₉]+|molecular|formula/i.test(content)) return 'high';
+  if (content.length > 1000) return 'medium';
+  return 'low';
+}
+
+function getPreservationNotes(content) {
+  const notes = [];
+  if (/\d+\s*(mg|mcg|ml|g|iu|%)\b/i.test(content)) notes.push('Dosage values must be preserved exactly');
+  if (/[A-Z][a-z]?[₀-₉]+|molecular|formula/i.test(content)) notes.push('Chemical names and formulas must not be translated');
+  if ((content.match(/\|/g) || []).length > 4) notes.push('Table structure must be maintained');
+  return notes;
+}
+
+function verifyCrossReferences(sections) {
+  const unresolvedRefs = [];
+  let resolvedCount = 0;
+  const refPattern = /(?:see|refer to|as described in|listed in|per|according to)\s+(?:section|annex|annexure|appendix|table)\s+[\d.]+/gi;
   for (const section of sections) {
-    const contentLower = section.content.toLowerCase();
-
-    if (dosageKeywords.some(k => contentLower.includes(k))) {
-      flags.push({
-        section: section.sectionName,
-        reason: 'dosage_table',
-        description: 'Contains dosage information requiring precise translation and formatting',
-        pageReferences: section.pageReferences
-      });
-    }
-
-    if (chemicalKeywords.some(k => contentLower.includes(k)) || /[A-Z][a-z]?[₀-₉]+/.test(section.content)) {
-      flags.push({
-        section: section.sectionName,
-        reason: 'chemical_formula',
-        description: 'Contains chemical formulas requiring expert verification',
-        pageReferences: section.pageReferences
-      });
-    }
+    if (section.flags?.crossRefResolved) resolvedCount++;
+    const matches = section.content.match(refPattern);
+    if (matches) unresolvedRefs.push({ section: section.sectionName, references: matches, pageReferences: section.pageReferences });
   }
+  return { resolvedCount, unresolvedCount: unresolvedRefs.length, unresolvedRefs, isFullyResolved: unresolvedRefs.length === 0 };
+}
 
-  return flags;
+function findTargetForDiagram(relatedSection, sectionMapping) {
+  if (!relatedSection) return null;
+  const m = sectionMapping.find(m => m.sourceSection?.sectionName === relatedSection);
+  return m?.targetSection?.name || relatedSection;
+}
+
+function detectMarketCode(doc) {
+  const name = (doc.name + ' ' + (doc.productName || '')).toLowerCase();
+  if (name.includes('thailand') || name.includes('thai') || name.includes('อย.')) return 'thailand_fda';
+  if (name.includes('taiwan') || name.includes('tfda') || name.includes('衛福部')) return 'taiwan_tfda';
+  return null;
 }
