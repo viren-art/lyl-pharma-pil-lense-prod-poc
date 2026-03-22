@@ -97,47 +97,166 @@ export async function extractWithClaudeVision(document, options = {}) {
 }
 
 /**
- * Send PDF directly to Claude as a document (native PDF support)
+ * Chunked extraction: index call + batched content calls.
+ * Prevents JSON truncation by keeping each response small.
+ *
+ * Step 1: Get section INDEX only (titles, pages, hierarchy) — ~2K tokens output
+ * Step 2: For each batch of 3-4 sections, extract FULL content — ~8K tokens each
+ * Step 3: Merge all batches into complete extraction
  */
 async function sendPdfToClaude(client, pdfBase64, prompt) {
-  // Claude counts PDF pages at ~2K tokens/page + prompt tokens (~2K).
-  // base64 size / 1400 ≈ page count for typical pharma PDFs.
-  // For safety, also check raw base64 token estimate.
-  const estimatedPages = Math.ceil(pdfBase64.length / 1400);
-  const inputByPages = estimatedPages * 2000 + 3000; // 2K/page + prompt
-  const inputByBase64 = Math.ceil(pdfBase64.length * 0.75 / 4);
-  // Use the LOWER estimate — Claude's PDF tokenizer is efficient
-  const inputEstimate = Math.min(inputByPages, inputByBase64);
-  const safeMaxTokens = Math.min(64000, Math.max(16000, 200000 - inputEstimate - 5000));
-  console.log(`[ClaudeVision] Pages: ~${estimatedPages}, input estimate: ${inputEstimate} tokens, max_tokens: ${safeMaxTokens}`);
+  const pdfContent = {
+    type: 'document',
+    source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
+  };
 
-  // Use streaming for large documents — Anthropic API requires it for requests >10 min
-  const stream = client.messages.stream({
+  // ── STEP 1: Get section index ──
+  console.log('[ClaudeVision] Step 1: Extracting section index...');
+  const indexStream = client.messages.stream({
     model: CLAUDE_MODEL,
-    max_tokens: safeMaxTokens,
+    max_tokens: 4000,
     messages: [{
       role: 'user',
       content: [
-        {
-          type: 'document',
-          source: {
-            type: 'base64',
-            media_type: 'application/pdf',
-            data: pdfBase64
-          }
-        },
-        { type: 'text', text: prompt }
+        pdfContent,
+        { type: 'text', text: `List every section and subsection in this pharmaceutical document.
+
+CRITICAL: If this document contains BOTH a Summary of Product Characteristics (SmPC) AND a Patient Information Leaflet (consumer PIL), list ONLY the SmPC sections (the detailed prescribing information).
+
+For each section return:
+{ "number": "4.1", "title": "Therapeutic indications", "page": 3, "type": "smpc" }
+
+Return ONLY a JSON array. No markdown code blocks. No explanation.` }
       ]
     }]
   });
 
-  const response = await stream.finalMessage();
+  const indexResponse = await indexStream.finalMessage();
+  if (!indexResponse?.content?.length) throw new Error('Index call returned empty');
 
-  if (!response?.content?.length) {
-    throw new Error('Claude returned empty response');
+  let sectionIndex;
+  try {
+    let indexText = indexResponse.content[0].text.trim();
+    if (indexText.startsWith('```')) indexText = indexText.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
+    sectionIndex = JSON.parse(indexText);
+  } catch (e) {
+    sectionIndex = repairTruncatedJson(indexResponse.content[0].text);
+    if (Array.isArray(sectionIndex)) { /* ok */ }
+    else if (sectionIndex.sections) sectionIndex = sectionIndex.sections;
+    else sectionIndex = Object.values(sectionIndex).flat();
   }
 
-  return parseClaudeResponse(response.content[0].text);
+  console.log(`[ClaudeVision] Index: ${sectionIndex.length} sections found`);
+
+  // ── STEP 2: Batch content extraction ──
+  const BATCH_SIZE = 4;
+  const batches = [];
+  for (let i = 0; i < sectionIndex.length; i += BATCH_SIZE) {
+    batches.push(sectionIndex.slice(i, i + BATCH_SIZE));
+  }
+
+  console.log(`[ClaudeVision] Step 2: Extracting content in ${batches.length} batches...`);
+
+  const allSections = [];
+  const allDiagrams = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    const sectionList = batch.map(s => `- ${s.number || ''} ${s.title || s.name || ''} (page ${s.page || '?'})`).join('\n');
+
+    console.log(`[ClaudeVision] Batch ${i + 1}/${batches.length}: ${batch.map(s => s.number || s.title).join(', ')}`);
+
+    const batchPrompt = `Extract the FULL content for ONLY these sections from the SmPC:
+
+${sectionList}
+
+For each section return:
+{
+  "sectionName": "exact heading as printed (include number)",
+  "content": "COMPLETE text — every paragraph, number, table row. Do NOT summarize.",
+  "pageNumber": <starting page>,
+  "confidence": <0.0-1.0>
+}
+
+Also identify any diagrams, charts, or tables in these sections:
+{
+  "type": "table" | "chemical_structure" | "chart",
+  "description": "what it shows",
+  "pageNumber": <page>,
+  "relatedSection": "section name"
+}
+
+Return ONLY JSON (no markdown):
+{ "sections": [...], "diagrams": [...] }`;
+
+    try {
+      const batchStream = client.messages.stream({
+        model: CLAUDE_MODEL,
+        max_tokens: 16000,
+        messages: [{
+          role: 'user',
+          content: [pdfContent, { type: 'text', text: batchPrompt }]
+        }]
+      });
+
+      const batchResponse = await batchStream.finalMessage();
+      if (!batchResponse?.content?.length) continue;
+
+      let parsed;
+      try {
+        let text = batchResponse.content[0].text.trim();
+        if (text.startsWith('```')) text = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = repairTruncatedJson(batchResponse.content[0].text);
+      }
+
+      const batchSections = parsed.sections || (Array.isArray(parsed) ? parsed : []);
+      const batchDiagrams = parsed.diagrams || [];
+
+      allSections.push(...batchSections);
+      allDiagrams.push(...batchDiagrams);
+
+      console.log(`[ClaudeVision] Batch ${i + 1}: ${batchSections.length} sections, ${batchDiagrams.length} diagrams`);
+
+    } catch (batchErr) {
+      console.error(`[ClaudeVision] Batch ${i + 1} failed: ${batchErr.message}`);
+      // Continue with other batches — partial extraction is better than none
+    }
+  }
+
+  console.log(`[ClaudeVision] Total extracted: ${allSections.length} sections, ${allDiagrams.length} diagrams`);
+
+  if (allSections.length === 0) {
+    throw new Error('No sections extracted from any batch');
+  }
+
+  // Normalize to standard format
+  const sections = allSections.map(s => ({
+    sectionName: s.sectionName || s.name || 'UNKNOWN',
+    content: s.content || '',
+    pageReferences: s.pageNumber ? [s.pageNumber] : [1],
+    confidenceScore: typeof s.confidence === 'number' ? s.confidence : 0.85,
+    flags: {
+      hasDosageTable: s.flags?.hasDosageTable || false,
+      hasChemicalFormula: s.flags?.hasChemicalFormula || false,
+      hasWarningBox: s.flags?.hasWarningBox || false,
+      isContinuedFromPrevious: false,
+      continuesOnNext: false,
+      crossRefResolved: s.flags?.crossRefResolved || false,
+      originalRef: s.flags?.originalRef || null,
+    }
+  }));
+
+  const diagrams = allDiagrams.map(d => ({
+    type: d.type || 'table',
+    description: d.description || '',
+    pageNumber: d.pageNumber || 1,
+    coordinates: d.coordinates || null,
+    relatedSection: d.relatedSection || ''
+  }));
+
+  return { sections, diagrams };
 }
 
 /**
