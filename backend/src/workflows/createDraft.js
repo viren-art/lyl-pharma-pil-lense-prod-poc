@@ -184,22 +184,23 @@ async function semanticSectionMapping(sourceSections, targetSections, marketTemp
     return fallbackMapping(sourceSections, targetSections);
   }
 
-  const sourceList = sourceSections.map((s, i) => `${i + 1}. "${s.sectionName}" — ${s.content.substring(0, 200)}...`).join('\n');
+  const sourceList = sourceSections.map((s, i) => `${i + 1}. "${s.sectionName}" (${s.content.length} chars, pages ${(s.pageReferences || []).join(',')}):\n${s.content.substring(0, 500)}...`).join('\n\n');
   const targetList = targetSections.map((t, i) => `${i + 1}. ${t.name}${t.localName ? ' (' + t.localName + ')' : ''}`).join('\n');
 
-  const prompt = `You are a pharmaceutical regulatory expert. Map source document sections to target market sections by MEANING, not by name.
+  const prompt = `You are a pharmaceutical regulatory expert. Map source SmPC/PIL sections to target market sections by MEANING.
 
-SOURCE SECTIONS (from Innovator PIL, English):
+SOURCE SECTIONS (from Innovator document):
 ${sourceList}
 
 TARGET SECTIONS (${marketTemplate?.marketName || 'target market'} template):
 ${targetList}
 
-RULES:
-- One source section may map to MULTIPLE targets (e.g., "What you need to know before taking" contains contraindications, warnings, drug interactions, and special populations — split across targets)
-- Some targets may have NO source match — mark as gap with a note about what document would provide this (e.g., SmPC for pharmacology data)
-- For each mapping, specify which PART of the source section is relevant
-- Return confidence 0.0-1.0 for each mapping
+CRITICAL RULES:
+- One source section may map to MULTIPLE targets. When this happens, you MUST specify exactly which paragraphs/subsection to extract for each target — DO NOT copy the entire source section into every target.
+- Example: SmPC Section 4.4 "Special warnings" has subsections on hepatotoxicity, cardiovascular risk, adrenal insufficiency, etc. Target "Warnings/hepatotoxicity" gets ONLY hepatotoxicity paragraphs. Target "Warnings/cardiovascular" gets ONLY cardiovascular paragraphs. ZERO overlap.
+- Some targets may have NO source match — mark as gap.
+- For each mapping, the "extractedContent" field must contain the ACTUAL TEXT to use for that target section — not just instructions. Extract the relevant paragraphs from the source.
+- Return confidence 0.0-1.0 for each mapping.
 
 Return ONLY a JSON array (no markdown), one entry per target section:
 [
@@ -209,8 +210,8 @@ Return ONLY a JSON array (no markdown), one entry per target section:
     "sourceIndex": 1 or null if no match,
     "sourceName": "exact source section name" or null,
     "confidence": 0.85,
-    "extractInstruction": "Extract the subsection about indications/what the medicine is used for" or null,
-    "gapNote": null or "Not in consumer PIL — needs Summary of Product Characteristics (SmPC)"
+    "extractedContent": "The actual relevant text extracted from the source section for this specific target. Only the paragraphs that belong here, not the entire source section." or null,
+    "gapNote": null or "Requires SmPC section X.X or separate clinical data document"
   }
 ]`;
 
@@ -218,7 +219,7 @@ Return ONLY a JSON array (no markdown), one entry per target section:
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
     const response = await client.messages.create({
       model: HAIKU_MODEL,
-      max_tokens: 4096,
+      max_tokens: 16384,
       messages: [{ role: 'user', content: prompt }]
     });
 
@@ -228,10 +229,14 @@ Return ONLY a JSON array (no markdown), one entry per target section:
 
     console.log(`[CreateDraft] Claude mapped ${mappings.filter(m => m.sourceIndex !== null).length}/${targetSections.length} sections`);
 
-    // Enrich with actual content
+    // Enrich with actual content — use extractedContent (subsection) over full source content
     return mappings.map(m => {
       const source = m.sourceIndex !== null ? sourceSections[m.sourceIndex] : null;
       const target = targetSections[m.targetIndex] || targetSections.find(t => t.name === m.targetName);
+
+      // Prefer Claude's extracted subsection content over full source section
+      const content = m.extractedContent || (source ? source.content : null);
+
       return {
         targetSection: {
           number: target?.number || String(m.targetIndex + 1),
@@ -243,10 +248,9 @@ Return ONLY a JSON array (no markdown), one entry per target section:
           pageReferences: source.pageReferences,
           confidenceScore: source.confidenceScore
         } : null,
-        sourceContent: source ? source.content : null,
-        extractInstruction: m.extractInstruction || null,
+        sourceContent: content,
         mappingConfidence: m.confidence || 0,
-        status: source ? 'mapped' : 'gap',
+        status: content ? 'mapped' : 'gap',
         gapNote: m.gapNote || null
       };
     });
@@ -453,17 +457,9 @@ async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, pr
 
     if (m.status === 'mapped' && m.sourceContent) {
       if (isTranslated && m.translatedContent) {
-        // Translated content
+        // Translated content ONLY — no English underneath (matches approved PIL format)
         for (const line of m.translatedContent.split('\n').filter(l => l.trim())) {
           children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
-        }
-        // English original below in gray
-        children.push(new Paragraph({
-          children: [new TextRun({ text: '— English Original —', size: 16, color: 'AAAAAA', italics: true })],
-          spacing: { before: 200, after: 60 }
-        }));
-        for (const line of m.sourceContent.split('\n').filter(l => l.trim()).slice(0, 15)) {
-          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 16, color: 'AAAAAA' })], spacing: { after: 40 } }));
         }
       } else {
         // English content (or translation failed)

@@ -102,7 +102,7 @@ export async function extractWithClaudeVision(document, options = {}) {
 async function sendPdfToClaude(client, pdfBase64, prompt) {
   const response = await client.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 8192,
+    max_tokens: 16384,
     messages: [{
       role: 'user',
       content: [
@@ -136,12 +136,14 @@ ${JSON.stringify(options.marketTemplate.sections, null, 2)}
 Map source document content to each target section. If a section is not found in the source, mark as MISSING. If content doesn't map cleanly, mark as NEEDS_REVIEW.`
     : '';
 
-  return `You are a pharmaceutical regulatory document expert analyzing a Patient Information Leaflet (PIL).
+  return `You are a pharmaceutical regulatory document expert. This document may be an EPAR, SmPC, or PIL.
 
-Extract ALL sections from this document. For each section return:
+CRITICAL: If this document contains BOTH a Summary of Product Characteristics (SmPC, detailed prescribing information, typically sections numbered 1-13) AND a Patient Information Leaflet (simplified consumer version, typically "What X is and what it is used for"), extract from the SmPC (the DETAILED version), NOT the consumer PIL. The SmPC has the complete clinical data needed for regulatory submissions.
+
+Extract ALL sections with their FULL content (not summaries). For each section return:
 {
   "sectionName": "exact section heading as printed",
-  "content": "complete text content of this section",
+  "content": "COMPLETE text content — every paragraph, every number, every table",
   "pageNumber": <page number where section starts>,
   "confidence": <0.0-1.0 your confidence in extraction accuracy>,
   "flags": {
@@ -155,6 +157,29 @@ Extract ALL sections from this document. For each section return:
   }
 }
 
+SmPC sections to look for (extract ALL that exist):
+1. Name of the medicinal product
+2. Qualitative and quantitative composition (active substance, molecular formula, excipients per strength)
+3. Pharmaceutical form
+4. Clinical particulars
+  4.1 Therapeutic indications (exact approved indications)
+  4.2 Posology and method of administration (all dosing regimens, dose adjustments, hepatic impairment thresholds)
+  4.3 Contraindications
+  4.4 Special warnings and precautions (EVERY subsection: hepatotoxicity, cardiovascular, adrenal insufficiency, etc.)
+  4.5 Interaction with other medicinal products (CYP3A4, CYP2D6, CYP2C8 with specific drug names)
+  4.6 Fertility, pregnancy and lactation
+  4.7 Effects on ability to drive
+  4.8 Undesirable effects (clinical trial data with percentages, Grade 3-4 events, SOC grouping)
+  4.9 Overdose
+5. Pharmacological properties
+  5.1 Pharmacodynamic properties (mechanism, clinical trial results with HR/CI/p-values)
+  5.2 Pharmacokinetic properties (absorption, food effect, distribution, metabolism, elimination)
+  5.3 Preclinical safety data
+6. Pharmaceutical particulars (storage, packaging, both strengths if applicable)
+
+Preserve ALL numbers: dosages, percentages, p-values, confidence intervals, hazard ratios.
+Include BOTH strengths (e.g., 250mg and 500mg) where applicable.
+
 DIAGRAMS AND VISUAL ELEMENTS:
 For each diagram, chart, chemical structure, or visual table found, include in a separate "diagrams" array:
 {
@@ -166,12 +191,12 @@ For each diagram, chart, chemical structure, or visual table found, include in a
 }
 
 CROSS-REFERENCE RESOLUTION:
-IMPORTANT: If any extracted text contains internal references like 'see section 6.1', 'listed in Annexure II', 'as described in section 4.4', you MUST:
+If any text contains internal references like 'see section 6.1', 'listed in Annexure II':
 1. Find that referenced section in the same document
 2. Extract the actual content from the referenced section
 3. Replace the reference with the real content inline
 4. Set crossRefResolved: true and originalRef: "section 6.1" in flags
-The output must be STANDALONE. No 'see section X' references should remain.
+The output must be STANDALONE.
 ${marketTemplateSection}
 
 Rules:
