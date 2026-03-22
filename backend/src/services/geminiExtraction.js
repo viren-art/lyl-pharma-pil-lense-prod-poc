@@ -1,35 +1,30 @@
 /**
  * Gemini PDF Extraction Service
  *
- * Uses Google GenAI SDK (Vertex AI) for PDF extraction.
+ * Uses Google AI Studio API (API key) for PDF extraction.
  * 1M token context window — eliminates chunking, truncation, and JSON repair.
  * One call. Full document. Complete extraction.
- *
- * Authentication: Uses Application Default Credentials (ADC) on Cloud Run.
- * No API key needed — the service account has Vertex AI access automatically.
  */
 import { GoogleGenAI } from '@google/genai';
 
-const GCP_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'lyl-poc-1';
-// Gemini 2.5 Pro is available in us-central1; fallback to 1.5 Pro if needed
-const GCP_LOCATION = process.env.GCP_LOCATION || 'us-central1';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro-preview-05-06';
 
 let genAI = null;
 
-try {
-  genAI = new GoogleGenAI({
-    vertexai: true,
-    project: GCP_PROJECT,
-    location: GCP_LOCATION,
-  });
-  console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}, project: ${GCP_PROJECT}, location: ${GCP_LOCATION}`);
-} catch (e) {
-  console.warn(`[GeminiExtraction] ⚠ Not available: ${e.message}`);
+if (GEMINI_API_KEY) {
+  try {
+    genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}`);
+  } catch (e) {
+    console.warn(`[GeminiExtraction] ⚠ Init failed: ${e.message}`);
+  }
+} else {
+  console.warn('[GeminiExtraction] ⚠ No GEMINI_API_KEY — Gemini extraction disabled');
 }
 
 /**
- * Check if Gemini is available for PDF extraction
+ * Check if Gemini is available
  */
 export function isGeminiAvailable() {
   return genAI !== null;
@@ -41,7 +36,7 @@ export function isGeminiAvailable() {
  */
 export async function extractPdfWithGemini(pdfBuffer, options = {}) {
   if (!genAI) {
-    throw new Error('Gemini not initialized — check GCP credentials');
+    throw new Error('Gemini not initialized — check GEMINI_API_KEY');
   }
 
   const pdfBase64 = pdfBuffer.toString('base64');
@@ -170,7 +165,7 @@ SmPC sections to extract (include ALL that exist):
 Rules:
 - Preserve ALL text exactly as printed including numbers, units, chemical names
 - For tables: extract as structured text preserving column headers and all row data
-- For chemical formulas: preserve subscripts (C₂₆H₃₃NO₂)
+- For chemical formulas: preserve subscripts (C26H33NO2)
 - Include cross-references as-is (e.g. "see section 4.4")
 - Include BOTH 250mg and 500mg strength information where applicable
 - Confidence < 0.85 means uncertain — flag it
