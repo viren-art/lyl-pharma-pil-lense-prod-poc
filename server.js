@@ -73,6 +73,22 @@ try {
   console.error('[Server] ✗ market-templates routes:', e.message);
 }
 
+// ── Python Document Service status ──
+try {
+  const { isPythonServiceAvailable } = await import('./backend/src/services/pythonDocService.js');
+  // Check after a short delay to let Python service start
+  setTimeout(async () => {
+    const available = await isPythonServiceAvailable();
+    if (available) {
+      console.log('[Server] ✓ Python Document Service (port 8081)');
+    } else {
+      console.log('[Server] ⚠ Python Document Service not available — using Node.js fallback');
+    }
+  }, 5000);
+} catch (e) {
+  console.log('[Server] ⚠ Python Document Service module not loaded:', e.message);
+}
+
 // ── SPA catch-all ──
 const indexPath = path.join(publicDir, 'index.html');
 if (fs.existsSync(indexPath)) {
