@@ -14,7 +14,7 @@ export async function generateTranslationChecklist(innovatorSections, marketForm
   }
   
   try {
-    const { Anthropic } = await import('@anthropic-ai/sdk');
+    const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
     
     const prompt = `You are creating a translation checklist for pharmaceutical PIL content.

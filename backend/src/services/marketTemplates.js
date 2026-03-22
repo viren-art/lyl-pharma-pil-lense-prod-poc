@@ -101,7 +101,7 @@ export async function learnTemplateFromDocument(document, marketCode, marketName
     documentText = document.buffer.toString('utf-8', 0, Math.min(document.buffer.length, 50000));
   }
 
-  const { Anthropic } = await import('@anthropic-ai/sdk');
+  const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
   const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
 
   const response = await client.messages.create({

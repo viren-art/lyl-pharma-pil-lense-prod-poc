@@ -24,7 +24,7 @@ export async function analyzeDeviations(approvedSections, artworkSections) {
     return mockDeviationAnalysis(approvedSections, artworkSections);
   }
   
-  const { Anthropic } = await import('@anthropic-ai/sdk');
+  const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
   const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
   
   const prompt = `You are analyzing deviations between an approved PIL and an artwork draft.
@@ -77,7 +77,7 @@ export async function classifyVariation(approvedSections, updatedSections) {
     return mockVariationClassification(approvedSections, updatedSections);
   }
   
-  const { Anthropic } = await import('@anthropic-ai/sdk');
+  const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
   const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
   
   const prompt = `Classify this PIL variation as COMPLICATED or GENERAL.
@@ -133,7 +133,7 @@ export async function generateDraftOutline(innovatorSections, regulatorySections
     return mockDraftOutline(innovatorSections, regulatorySections, marketFormatSections);
   }
   
-  const { Anthropic } = await import('@anthropic-ai/sdk');
+  const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
   const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
   
   const prompt = `Generate a PIL draft outline by aligning innovator content to target market format.

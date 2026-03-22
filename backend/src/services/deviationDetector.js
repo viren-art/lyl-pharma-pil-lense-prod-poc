@@ -30,7 +30,7 @@ export async function detectDeviations(approvedSections, artworkSections) {
   }
 
   try {
-    const { Anthropic } = await import('@anthropic-ai/sdk');
+    const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
 
     console.log('[DeviationDetector] Starting two-pass deviation detection', {

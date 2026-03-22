@@ -24,7 +24,7 @@ export async function classifyVariation(approvedSections, updatedSections) {
   }
   
   try {
-    const { Anthropic } = await import('@anthropic-ai/sdk');
+    const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
     
     // Prepare section comparison data

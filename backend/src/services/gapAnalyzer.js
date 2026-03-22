@@ -14,7 +14,7 @@ export async function analyzeGaps(innovatorSections, marketFormatSections, regul
   }
   
   try {
-    const { Anthropic } = await import('@anthropic-ai/sdk');
+    const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
     
     const prompt = `You are analyzing content gaps in a pharmaceutical PIL draft.
