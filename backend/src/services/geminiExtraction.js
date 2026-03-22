@@ -7,7 +7,8 @@
  *
  * Authentication: Application Default Credentials (ADC) on Cloud Run.
  */
-import { VertexAI, Type } from '@google-cloud/vertexai';
+import pkg from '@google-cloud/vertexai';
+const { VertexAI, SchemaType } = pkg;
 
 const GCP_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'lyl-poc-1';
 const GCP_LOCATION = 'us-central1';
@@ -24,18 +25,18 @@ try {
       temperature: 0.0,
       responseMimeType: 'application/json',
       responseSchema: {
-        type: Type.ARRAY,
+        type: SchemaType.ARRAY,
         items: {
-          type: Type.OBJECT,
+          type: SchemaType.OBJECT,
           properties: {
-            sectionTitle: { type: Type.STRING, description: 'Exact section heading including number, e.g. "4.2 Posology and method of administration"' },
-            content: { type: Type.STRING, description: 'Complete section text. Every paragraph, table (as markdown), number, footnote. No summarizing.' },
-            pageNumber: { type: Type.INTEGER, description: 'Page number where this section starts' },
-            confidence: { type: Type.NUMBER, description: 'Extraction confidence 0.0-1.0' },
-            hasDosageTable: { type: Type.BOOLEAN },
-            hasChemicalFormula: { type: Type.BOOLEAN },
-            isDiagram: { type: Type.BOOLEAN, description: 'True if this entry describes a diagram/chart/table figure rather than text content' },
-            diagramDescription: { type: Type.STRING, description: 'If isDiagram=true, describe what the diagram shows' },
+            sectionTitle: { type: SchemaType.STRING, description: 'Exact section heading including number, e.g. "4.2 Posology and method of administration"' },
+            content: { type: SchemaType.STRING, description: 'Complete section text. Every paragraph, table (as markdown), number, footnote. No summarizing.' },
+            pageNumber: { type: SchemaType.INTEGER, description: 'Page number where this section starts' },
+            confidence: { type: SchemaType.NUMBER, description: 'Extraction confidence 0.0-1.0' },
+            hasDosageTable: { type: SchemaType.BOOLEAN },
+            hasChemicalFormula: { type: SchemaType.BOOLEAN },
+            isDiagram: { type: SchemaType.BOOLEAN, description: 'True if this entry describes a diagram/chart/table figure rather than text content' },
+            diagramDescription: { type: SchemaType.STRING, description: 'If isDiagram=true, describe what the diagram shows' },
           },
           required: ['sectionTitle', 'content']
         }
