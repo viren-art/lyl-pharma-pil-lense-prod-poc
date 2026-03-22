@@ -65,6 +65,14 @@ try {
   console.error('[Server] ✗ assessVariation routes:', e.message);
 }
 
+try {
+  const { default: marketTemplatesRouter } = await import('./backend/src/routes/marketTemplates.js');
+  app.use('/api/config/market-templates', marketTemplatesRouter);
+  console.log('[Server] ✓ /api/config/market-templates');
+} catch (e) {
+  console.error('[Server] ✗ market-templates routes:', e.message);
+}
+
 // ── SPA catch-all ──
 const indexPath = path.join(publicDir, 'index.html');
 if (fs.existsSync(indexPath)) {

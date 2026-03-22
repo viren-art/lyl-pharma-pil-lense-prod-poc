@@ -62,6 +62,7 @@ export async function extractDocument(documentId, sessionId) {
       documentId,
       provider: isWordDoc ? 'mammoth' : 'claude_vision',
       sections: extractionResult.sections,
+      diagrams: extractionResult.diagrams || [],
       pageImages: extractionResult.pageImages || [],
       processingTimeMs,
       processedDate: new Date().toISOString()
@@ -115,6 +116,7 @@ async function extractWordWithMammoth(document) {
 
     return {
       sections,
+      diagrams: [], // Word docs don't have visual diagrams to extract
       pageImages: [] // Word docs don't have page images
     };
 

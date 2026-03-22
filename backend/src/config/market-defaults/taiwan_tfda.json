@@ -1,0 +1,94 @@
+{
+  "marketCode": "taiwan_tfda",
+  "marketName": "Taiwan TFDA",
+  "language": "Traditional Chinese",
+  "isDefault": true,
+  "lastUpdated": "2024-01-15T00:00:00.000Z",
+  "source": "default",
+  "sections": [
+    {
+      "number": "1",
+      "name": "Description",
+      "localName": "性狀",
+      "required": true,
+      "subsections": [
+        { "number": "1.1", "name": "Active ingredients and content", "localName": "有效成分及含量" },
+        { "number": "1.2", "name": "Excipients", "localName": "賦形劑" }
+      ]
+    },
+    {
+      "number": "2",
+      "name": "Indications",
+      "localName": "適應症",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "3",
+      "name": "Dosage and Administration",
+      "localName": "用法用量",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "4",
+      "name": "Contraindications",
+      "localName": "禁忌",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "5",
+      "name": "Warnings and Precautions",
+      "localName": "警告及注意事項",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "6",
+      "name": "Adverse Reactions",
+      "localName": "不良反應",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "7",
+      "name": "Drug Interactions",
+      "localName": "藥物交互作用",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "8",
+      "name": "Use in Special Populations",
+      "localName": "特殊族群使用",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "9",
+      "name": "Overdose",
+      "localName": "過量",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "10",
+      "name": "Storage",
+      "localName": "保存方法",
+      "required": true,
+      "subsections": []
+    },
+    {
+      "number": "11",
+      "name": "Manufacturer/Importer",
+      "localName": "製造商/進口商",
+      "required": true,
+      "subsections": []
+    }
+  ],
+  "mandatoryFooter": {
+    "manufacturer": { "name": "Manufacturer/Importer", "localName": "製造商/進口商", "required": true },
+    "revisionDate": { "name": "Date of last revision", "localName": "最後修訂日期", "required": true }
+  }
+}
