@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
 const workflowExecutions = new Map();
 
 // Performance constraints
-const MAX_WORKFLOW_TIME_MS = 120000; // 120 seconds total workflow time
+const MAX_WORKFLOW_TIME_MS = 300000; // 5 minutes — Claude PDF extraction + deviation analysis
 
 /**
  * Execute Review AW workflow
