@@ -13,6 +13,7 @@ WORKDIR /app
 # Install system Chromium + CJK/Thai fonts (no 400MB Chromium download)
 RUN apt-get update && apt-get install -y \
     chromium \
+    poppler-utils \
     fonts-noto-cjk \
     fonts-noto-color-emoji \
     --no-install-recommends \
