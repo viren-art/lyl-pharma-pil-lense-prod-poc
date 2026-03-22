@@ -100,9 +100,10 @@ export async function extractWithClaudeVision(document, options = {}) {
  * Send PDF directly to Claude as a document (native PDF support)
  */
 async function sendPdfToClaude(client, pdfBase64, prompt) {
-  const response = await client.messages.create({
+  // Use streaming for large documents — Anthropic API requires it for requests >10 min
+  const stream = client.messages.stream({
     model: CLAUDE_MODEL,
-    max_tokens: 32000, // Large SmPC docs need more output space
+    max_tokens: 32000,
     messages: [{
       role: 'user',
       content: [
@@ -118,6 +119,8 @@ async function sendPdfToClaude(client, pdfBase64, prompt) {
       ]
     }]
   });
+
+  const response = await stream.finalMessage();
 
   if (!response?.content?.length) {
     throw new Error('Claude returned empty response');

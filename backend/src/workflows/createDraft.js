@@ -225,12 +225,13 @@ Return ONLY a JSON array (no markdown), one entry per target section:
 
   try {
     const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
-    // Use Sonnet for mapping — needs to understand full SmPC content and extract subsections
-    const response = await client.messages.create({
+    // Use streaming for large SmPC content — Anthropic requires it for requests >10 min
+    const stream = client.messages.stream({
       model: SONNET_MODEL,
       max_tokens: 32000,
       messages: [{ role: 'user', content: prompt }]
     });
+    const response = await stream.finalMessage();
 
     let text = response.content[0].text.trim();
     if (text.startsWith('```')) text = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '');
