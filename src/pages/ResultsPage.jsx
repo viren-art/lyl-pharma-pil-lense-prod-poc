@@ -301,7 +301,14 @@ function CreateDraftResults({ data }) {
                 <div key={i} className="rounded-lg border border-gray-100 p-4 hover:bg-gray-50/50">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-900">{t.section}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{t.section}</p>
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                          t.status?.includes('Translated') ? 'bg-emerald-50 text-emerald-700' :
+                          t.status?.includes('human') ? 'bg-red-50 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{t.status || 'Pending'}</span>
+                      </div>
                       <p className="text-xs text-gray-500 mt-0.5">{t.localName}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         {t.sourceLanguage} → {t.targetLanguage} • {t.wordCount} words
@@ -668,21 +675,38 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* Download button for Create PIL Draft */}
-      {workflowType === 'create_draft' && rawResult.docxBase64 && (
-        <div className="mb-6">
-          <button
-            onClick={() => {
-              const link = document.createElement('a');
-              link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${rawResult.docxBase64}`;
-              link.download = `PIL_Draft_${new Date().toISOString().split('T')[0]}.docx`;
-              link.click();
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-lotus-500 hover:bg-lotus-600 text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Download Draft PIL (.docx)
-          </button>
+      {/* Download buttons for Create PIL Draft */}
+      {workflowType === 'create_draft' && (rawResult.docxEnBase64 || rawResult.docxBase64 || rawResult.docxTranslatedBase64) && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          {(rawResult.docxEnBase64 || rawResult.docxBase64) && (
+            <button
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${rawResult.docxEnBase64 || rawResult.docxBase64}`;
+                link.download = `PIL_Draft_${rawResult.marketTemplate?.marketCode || 'market'}_EN_${new Date().toISOString().split('T')[0]}.docx`;
+                link.click();
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-600 hover:bg-navy-700 text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              Download English Draft
+            </button>
+          )}
+          {rawResult.docxTranslatedBase64 && (
+            <button
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${rawResult.docxTranslatedBase64}`;
+                const langCode = rawResult.targetLanguage === 'th' ? 'TH' : 'TC';
+                link.download = `PIL_Draft_${rawResult.marketTemplate?.marketCode || 'market'}_${langCode}_${new Date().toISOString().split('T')[0]}.docx`;
+                link.click();
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-lotus-500 hover:bg-lotus-600 text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
+              Download Translated Draft
+            </button>
+          )}
         </div>
       )}
 

@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
 const HAIKU_MODEL = 'claude-3-5-haiku-20241022'; // Cheap + fast for mapping
+const SONNET_MODEL = 'claude-sonnet-4-20250514'; // Higher quality for translation
 
 /**
  * Create PIL Draft Workflow
@@ -95,25 +96,43 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
     console.log('[CreateDraft] Step G: Building structured draft');
     const structuredDraft = buildStructuredDraft(sectionMapping, marketTemplate);
 
-    // ── Step H: Generate Word document ──
-    console.log('[CreateDraft] Step H: Generating Word document');
-    let docxBase64 = null;
+    // ── Step H: Generate English Word document ──
+    console.log('[CreateDraft] Step H: Generating English Word document');
+    let docxEnBase64 = null;
     try {
-      docxBase64 = await generateDraftDocx(structuredDraft, gapAnalysis, sectionMapping, marketTemplate, innovatorDoc.productName);
+      docxEnBase64 = await generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, innovatorDoc.productName, 'en');
     } catch (e) {
-      console.error('[CreateDraft] Word doc generation failed:', e.message);
+      console.error('[CreateDraft] English docx generation failed:', e.message);
     }
 
-    // Translation checklist
-    const translationChecklist = buildTranslationChecklist(sectionMapping, marketTemplate);
+    // ── Step I: Translate mapped sections via Claude ──
+    console.log('[CreateDraft] Step I: Translating sections via Claude');
+    let translatedMapping = [];
+    let docxTranslatedBase64 = null;
+    const targetLanguage = detectTargetLanguage(marketTemplate);
+
+    try {
+      translatedMapping = await translateMappedSections(sectionMapping, targetLanguage, marketTemplate);
+      console.log(`[CreateDraft] Translated ${translatedMapping.filter(t => t.translatedContent).length}/${translatedMapping.length} sections to ${targetLanguage}`);
+
+      // Generate translated Word document
+      docxTranslatedBase64 = await generateDraftDocx(translatedMapping, gapAnalysis, marketTemplate, innovatorDoc.productName, targetLanguage);
+    } catch (e) {
+      console.error('[CreateDraft] Translation/docx failed:', e.message);
+    }
+
+    // Translation checklist with status
+    const translationChecklist = buildTranslationChecklist(translatedMapping.length > 0 ? translatedMapping : sectionMapping, marketTemplate, targetLanguage);
 
     const executionTimeMs = Date.now() - startTime;
     console.log('[CreateDraft] Workflow completed', {
       executionTimeMs,
       mappedSections: sectionMapping.filter(m => m.sourceContent).length,
+      translatedSections: translatedMapping.filter(t => t.translatedContent).length,
       gaps: gapAnalysis.gaps.length,
       diagrams: diagramCarryover.length,
-      hasDocx: !!docxBase64
+      hasEnDocx: !!docxEnBase64,
+      hasTranslatedDocx: !!docxTranslatedBase64
     });
 
     return {
@@ -125,7 +144,10 @@ export async function executeCreateDraftWorkflow(innovatorPilId, regulatorySourc
       diagramCarryover,
       crossRefReport,
       translationChecklist,
-      docxBase64,
+      docxBase64: docxEnBase64, // backwards compat
+      docxEnBase64,
+      docxTranslatedBase64,
+      targetLanguage,
       marketTemplate: {
         marketCode: marketTemplate?.marketCode,
         marketName: marketTemplate?.marketName,
@@ -306,159 +328,213 @@ function buildStructuredDraft(sectionMapping, marketTemplate) {
 }
 
 /**
- * Step H: Generate Word document (.docx) with mapped content
+ * Step I: Translate mapped sections via Claude
  */
-async function generateDraftDocx(structuredDraft, gapAnalysis, sectionMapping, marketTemplate, productName) {
-  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, BorderStyle, WidthType, Packer } = await import('docx');
+async function translateMappedSections(sectionMapping, targetLanguage, marketTemplate) {
+  if (!CLAUDE_API_KEY) {
+    console.warn('[CreateDraft] No API key — skipping translation');
+    return sectionMapping.map(m => ({ ...m, translatedContent: null, translationConfidence: 0, translationStatus: 'skipped' }));
+  }
 
+  const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+  const langName = targetLanguage === 'tc' ? 'Traditional Chinese (繁體中文)' : 'Thai (ภาษาไทย)';
+  const marketName = targetLanguage === 'tc' ? 'Taiwan TFDA' : 'Thailand Thai FDA';
+
+  const results = [];
+  for (const mapping of sectionMapping) {
+    if (!mapping.sourceContent || mapping.status !== 'mapped') {
+      results.push({ ...mapping, translatedContent: null, translationConfidence: 0, translationStatus: mapping.status === 'gap' ? 'gap' : 'skipped' });
+      continue;
+    }
+
+    try {
+      console.log(`[CreateDraft] Translating: ${mapping.targetSection.name}`);
+      const response = await client.messages.create({
+        model: HAIKU_MODEL,
+        max_tokens: 4096,
+        messages: [{
+          role: 'user',
+          content: `Translate this pharmaceutical PIL section to ${langName} for ${marketName} submission.
+
+Section: ${mapping.targetSection.name} (${mapping.targetSection.localName || ''})
+
+English content:
+${mapping.sourceContent}
+
+CRITICAL RULES:
+- Do NOT translate brand names (e.g., ZYTIGA stays as ZYTIGA)
+- Preserve all dosage numbers and units exactly (e.g., 250 mg, 5 mL)
+- Preserve chemical formulas exactly (e.g., C₂₄H₃₁NO₂)
+- Use standard ${marketName}-approved medical terminology
+- Section numbering must match ${marketName} format
+- Maintain table structures if present
+
+Return ONLY the translated text. No explanations or notes.`
+        }]
+      });
+
+      const translated = response.content[0].text.trim();
+      results.push({
+        ...mapping,
+        translatedContent: translated,
+        translationConfidence: 0.85,
+        translationStatus: 'translated'
+      });
+    } catch (e) {
+      console.error(`[CreateDraft] Translation failed for ${mapping.targetSection.name}:`, e.message);
+      results.push({ ...mapping, translatedContent: null, translationConfidence: 0, translationStatus: 'failed' });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Step H: Generate Word document (.docx)
+ * mode: 'en' = English draft, 'tc'/'th' = Translated draft
+ */
+async function generateDraftDocx(sectionMapping, gapAnalysis, marketTemplate, productName, mode) {
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, Packer } = await import('docx');
+
+  const isTranslated = mode !== 'en';
+  const langLabel = mode === 'tc' ? '繁體中文' : mode === 'th' ? 'ภาษาไทย' : 'English';
   const children = [];
 
-  // Title
-  children.push(new Paragraph({
-    children: [new TextRun({ text: 'DRAFT PIL — FOR REVIEW ONLY', bold: true, size: 32, color: 'CC0000' })],
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 200 }
-  }));
+  // Header
+  if (isTranslated) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `DRAFT PIL — 供審核用 (For Review)`, bold: true, size: 32, color: 'CC0000' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 200 }
+    }));
+  } else {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'INTERNAL REVIEW COPY — English Structure Draft', bold: true, size: 32, color: '1B365D' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 200 }
+    }));
+  }
+
   children.push(new Paragraph({
     children: [new TextRun({ text: `Product: ${productName || 'N/A'}`, size: 24 })],
     alignment: AlignmentType.CENTER
   }));
   children.push(new Paragraph({
-    children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} (${marketTemplate?.language || 'N/A'})`, size: 20, color: '666666' })],
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 400 }
+    children: [new TextRun({ text: `Target Market: ${marketTemplate?.marketName || 'N/A'} | Language: ${langLabel}`, size: 20, color: '666666' })],
+    alignment: AlignmentType.CENTER, spacing: { after: 200 }
   }));
   children.push(new Paragraph({
-    children: [new TextRun({ text: `Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness} | English content — translation pending`, size: 18, color: '999999', italics: true })],
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 600 }
+    children: [new TextRun({ text: `Generated: ${new Date().toISOString().split('T')[0]} | Completeness: ${gapAnalysis.completeness}`, size: 18, color: '999999', italics: true })],
+    alignment: AlignmentType.CENTER, spacing: { after: 600 }
   }));
 
-  // Sections in target market order
-  for (const mapping of sectionMapping) {
-    const sectionTitle = `${mapping.targetSection.number}. ${mapping.targetSection.name}`;
-    const localName = mapping.targetSection.localName ? ` (${mapping.targetSection.localName})` : '';
+  // Sections
+  for (const m of sectionMapping) {
+    const num = m.targetSection.number;
+    const name = m.targetSection.name;
+    const localName = m.targetSection.localName || '';
 
-    children.push(new Paragraph({
-      children: [
-        new TextRun({ text: sectionTitle, bold: true, size: 26 }),
-        new TextRun({ text: localName, size: 22, color: '666666' }),
-      ],
-      heading: HeadingLevel.HEADING_2,
-      spacing: { before: 400, after: 100 }
-    }));
-
-    if (mapping.status === 'mapped' && mapping.sourceContent) {
-      // Source reference
+    // Section heading
+    if (isTranslated && localName) {
       children.push(new Paragraph({
-        children: [new TextRun({ text: `Source: ${mapping.sourceSection?.sectionName || 'Innovator PIL'} (${(mapping.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
-        spacing: { after: 100 }
+        children: [
+          new TextRun({ text: `${num}. ${localName}`, bold: true, size: 26 }),
+          new TextRun({ text: ` (${name})`, size: 20, color: '888888' }),
+        ],
+        heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 100 }
       }));
-      if (mapping.extractInstruction) {
+    } else {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${num}. ${name}`, bold: true, size: 26 }),
+          ...(localName ? [new TextRun({ text: ` (${localName})`, size: 22, color: '666666' })] : []),
+        ],
+        heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 100 }
+      }));
+    }
+
+    if (m.status === 'mapped' && m.sourceContent) {
+      if (isTranslated && m.translatedContent) {
+        // Translated content
+        for (const line of m.translatedContent.split('\n').filter(l => l.trim())) {
+          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
+        }
+        // English original below in gray
         children.push(new Paragraph({
-          children: [new TextRun({ text: `Note: ${mapping.extractInstruction}`, size: 16, color: '0066CC', italics: true })],
-          spacing: { after: 100 }
+          children: [new TextRun({ text: '— English Original —', size: 16, color: 'AAAAAA', italics: true })],
+          spacing: { before: 200, after: 60 }
         }));
-      }
-      // Content paragraphs
-      const lines = mapping.sourceContent.split('\n').filter(l => l.trim());
-      for (const line of lines) {
+        for (const line of m.sourceContent.split('\n').filter(l => l.trim()).slice(0, 15)) {
+          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 16, color: 'AAAAAA' })], spacing: { after: 40 } }));
+        }
+      } else {
+        // English content (or translation failed)
+        if (isTranslated) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: '[TRANSLATION PENDING — English content shown below]', bold: true, size: 18, color: 'FF8800' })],
+            spacing: { after: 80 }
+          }));
+        }
+        // Source reference
         children.push(new Paragraph({
-          children: [new TextRun({ text: line, size: 20 })],
-          spacing: { after: 60 }
+          children: [new TextRun({ text: `Source: ${m.sourceSection?.sectionName || 'Innovator PIL'} (${(m.mappingConfidence * 100).toFixed(0)}% match)`, size: 16, color: '008800', italics: true })],
+          spacing: { after: 80 }
         }));
+        for (const line of m.sourceContent.split('\n').filter(l => l.trim())) {
+          children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } }));
+        }
       }
     } else {
-      // Gap placeholder
       children.push(new Paragraph({
         children: [new TextRun({ text: '[CONTENT GAP — NOT AVAILABLE IN SOURCE DOCUMENT]', bold: true, size: 20, color: 'CC0000' })],
         spacing: { after: 60 }
       }));
-      if (mapping.gapNote) {
+      if (m.gapNote) {
         children.push(new Paragraph({
-          children: [new TextRun({ text: mapping.gapNote, size: 18, color: 'CC0000', italics: true })],
+          children: [new TextRun({ text: m.gapNote, size: 18, color: 'CC0000', italics: true })],
           spacing: { after: 100 }
         }));
       }
     }
   }
 
-  // Gap Summary Table
+  // Gap Summary
   children.push(new Paragraph({
     children: [new TextRun({ text: 'Gap Summary', bold: true, size: 28 })],
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 600, after: 200 }
+    heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200 }
   }));
 
   if (gapAnalysis.gaps.length > 0) {
-    const headerRow = new TableRow({
-      children: ['Section', 'Severity', 'Action Required'].map(h =>
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })],
-          width: { size: 33, type: WidthType.PERCENTAGE }
-        })
-      )
-    });
-
-    const dataRows = gapAnalysis.gaps.map(g =>
-      new TableRow({
-        children: [g.targetSection, g.severity, g.suggestedAction].map(val =>
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: val || '', size: 18 })] })],
-            width: { size: 33, type: WidthType.PERCENTAGE }
-          })
-        )
-      })
-    );
-
-    children.push(new Table({ rows: [headerRow, ...dataRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
+    const rows = [
+      new TableRow({ children: ['Section', 'Severity', 'Action'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }),
+      ...gapAnalysis.gaps.map(g => new TableRow({ children: [g.targetSection, g.severity, g.suggestedAction].map(v => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v || '', size: 18 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) }))
+    ];
+    children.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
   } else {
+    children.push(new Paragraph({ children: [new TextRun({ text: 'No gaps — all sections mapped.', size: 20, color: '008800' })] }));
+  }
+
+  // Translation checklist (in translated doc)
+  if (isTranslated) {
     children.push(new Paragraph({
-      children: [new TextRun({ text: 'No gaps identified — all target sections have source content.', size: 20, color: '008800' })]
+      children: [new TextRun({ text: 'Translation Status', bold: true, size: 28 })],
+      heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200 }
     }));
+
+    const statusRows = sectionMapping.filter(m => m.sourceContent).map(m => {
+      const status = m.translationStatus === 'translated' ? '✓ Translated' : m.translationStatus === 'failed' ? '✗ Failed — needs human translator' : '○ Pending';
+      return new TableRow({
+        children: [m.targetSection.name, String(m.sourceContent.split(/\s+/).length), status].map(v =>
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, size: 16 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })
+        )
+      });
+    });
+
+    if (statusRows.length > 0) {
+      const header = new TableRow({ children: ['Section', 'Words', 'Status'].map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16 })] })], width: { size: 33, type: WidthType.PERCENTAGE } })) });
+      children.push(new Table({ rows: [header, ...statusRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
+    }
   }
 
-  // Translation Checklist
-  children.push(new Paragraph({
-    children: [new TextRun({ text: 'Translation Checklist', bold: true, size: 28 })],
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 600, after: 200 }
-  }));
-
-  const translationRows = sectionMapping.filter(m => m.sourceContent).map(m => {
-    const wordCount = m.sourceContent.split(/\s+/).length;
-    return new TableRow({
-      children: [
-        m.targetSection.name,
-        m.targetSection.localName || '—',
-        String(wordCount),
-        marketTemplate?.language || 'Traditional Chinese',
-        'Pending'
-      ].map(val =>
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: val, size: 16 })] })],
-          width: { size: 20, type: WidthType.PERCENTAGE }
-        })
-      )
-    });
-  });
-
-  if (translationRows.length > 0) {
-    const tlHeader = new TableRow({
-      children: ['Section', 'Local Name', 'Words', 'Target Language', 'Status'].map(h =>
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16 })] })],
-          width: { size: 20, type: WidthType.PERCENTAGE }
-        })
-      )
-    });
-    children.push(new Table({ rows: [tlHeader, ...translationRows], width: { size: 100, type: WidthType.PERCENTAGE } }));
-  }
-
-  const doc = new Document({
-    sections: [{ children }]
-  });
-
+  const doc = new Document({ sections: [{ children }] });
   const buffer = await Packer.toBuffer(doc);
   return buffer.toString('base64');
 }
@@ -466,19 +542,28 @@ async function generateDraftDocx(structuredDraft, gapAnalysis, sectionMapping, m
 /**
  * Build translation checklist for frontend
  */
-function buildTranslationChecklist(sectionMapping, marketTemplate) {
+function buildTranslationChecklist(sectionMapping, marketTemplate, targetLanguage) {
+  const langMap = { tc: 'Traditional Chinese', th: 'Thai' };
   return sectionMapping
     .filter(m => m.sourceContent)
     .map(m => ({
       section: m.targetSection.name,
       localName: m.targetSection.localName || '',
       sourceLanguage: 'English',
-      targetLanguage: marketTemplate?.language || 'Traditional Chinese',
+      targetLanguage: langMap[targetLanguage] || marketTemplate?.language || 'Traditional Chinese',
       wordCount: m.sourceContent.split(/\s+/).length,
       complexity: estimateComplexity(m.sourceContent),
-      status: 'Pending translation',
+      status: m.translationStatus === 'translated' ? 'Translated by AI' : m.translationStatus === 'failed' ? 'Needs human translator' : 'Pending translation',
+      translationConfidence: m.translationConfidence || 0,
       preservationNotes: getPreservationNotes(m.sourceContent)
     }));
+}
+
+function detectTargetLanguage(marketTemplate) {
+  const lang = (marketTemplate?.language || '').toLowerCase();
+  if (lang.includes('chinese') || lang.includes('中文')) return 'tc';
+  if (lang.includes('thai') || lang.includes('ไทย')) return 'th';
+  return 'tc'; // default to Traditional Chinese for Lotus
 }
 
 function estimateComplexity(content) {
