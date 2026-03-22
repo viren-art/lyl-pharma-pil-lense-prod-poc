@@ -7,10 +7,20 @@
  *
  * For Word documents, mammoth handles extraction in extractionRouter.js.
  */
+import Anthropic from '@anthropic-ai/sdk';
 
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 const USE_MOCK = !CLAUDE_API_KEY;
+
+// Initialize client at module scope (singleton)
+let client = null;
+if (CLAUDE_API_KEY) {
+  client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+  console.log('[ClaudeVision] ✓ Client initialized, model:', CLAUDE_MODEL);
+} else {
+  console.warn('[ClaudeVision] ⚠ No API key — mock mode active');
+}
 
 // Timeout configuration
 const EXTRACTION_TIMEOUT_MS = 60000; // 60 seconds total timeout
@@ -40,8 +50,9 @@ export async function extractWithClaudeVision(document, options = {}) {
   }
 
   try {
-    const AnthropicModule = await import('@anthropic-ai/sdk'); const Anthropic = AnthropicModule.default || AnthropicModule.Anthropic;
-    const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+    if (!client) {
+      throw new Error('Anthropic client not initialized — check ANTHROPIC_API_KEY');
+    }
 
     const pdfBase64 = document.buffer.toString('base64');
     const prompt = buildExtractionPrompt(options);
