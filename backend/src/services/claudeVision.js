@@ -8,7 +8,7 @@
  * For Word documents, mammoth handles extraction in extractionRouter.js.
  */
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 const USE_MOCK = !CLAUDE_API_KEY;
 

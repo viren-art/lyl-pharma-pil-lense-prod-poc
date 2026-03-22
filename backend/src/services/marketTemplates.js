@@ -84,7 +84,7 @@ export function updateTemplate(marketCode, updates) {
  * Learn template structure from a document using Claude
  */
 export async function learnTemplateFromDocument(document, marketCode, marketName) {
-  const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
 
   if (!CLAUDE_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY required for template learning');

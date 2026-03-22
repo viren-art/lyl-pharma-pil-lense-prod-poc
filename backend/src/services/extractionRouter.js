@@ -8,8 +8,19 @@ import { getDocumentById } from './documentManager.js';
  * - Word (.docx) → mammoth (text extraction, $0/page)
  */
 
-// In-memory extraction results cache
+// In-memory extraction results cache with TTL
 const extractionResults = new Map();
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// Periodic cache cleanup (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of extractionResults) {
+    if (now - new Date(value.processedDate).getTime() > CACHE_TTL_MS) {
+      extractionResults.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
 
 /**
  * Extract document content using appropriate method based on file type

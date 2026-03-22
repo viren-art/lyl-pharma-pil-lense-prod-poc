@@ -1,8 +1,8 @@
 // LYL_DEP: @anthropic-ai/sdk@^0.9.0
 // LYL_DEP: dotenv@^16.3.1
 
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
+const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 const USE_MOCK = !CLAUDE_API_KEY;
 
 /**

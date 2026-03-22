@@ -95,4 +95,10 @@ app.use((err, req, res, next) => {
 // ── Start ──
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] PIL Lens running on port ${PORT}`);
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (!apiKey) {
+    console.warn('[Server] ⚠ No ANTHROPIC_API_KEY set — all AI features will return MOCK data');
+  } else {
+    console.log('[Server] ✓ ANTHROPIC_API_KEY configured');
+  }
 });

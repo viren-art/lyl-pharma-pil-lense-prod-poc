@@ -31,5 +31,12 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./
 COPY --from=build /app/backend ./backend
 
+# Create writable directories for runtime data
+RUN mkdir -p /app/backend/src/logs /app/backend/src/config/market-learned && \
+    chown -R node:node /app
+
+# Run as non-root for security
+USER node
+
 EXPOSE 8080
 CMD ["node", "server.js"]
