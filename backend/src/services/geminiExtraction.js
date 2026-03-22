@@ -1,33 +1,41 @@
 /**
  * Gemini PDF Extraction Service
  *
- * Uses Google AI Studio API (API key) for PDF extraction.
+ * Uses Vertex AI in us-central1 for Gemini 2.5 Pro access.
  * 1M token context window — eliminates chunking, truncation, and JSON repair.
  * One call. Full document. Complete extraction.
+ *
+ * Authentication: Application Default Credentials (ADC) on Cloud Run.
+ * Confirmed working: us-central1 endpoint with gemini-2.5-pro model.
  */
-import { GoogleGenAI } from '@google/genai';
+import { VertexAI } from '@google-cloud/vertexai';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+const GCP_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'lyl-poc-1';
+const GCP_LOCATION = 'us-central1'; // Confirmed working — gemini-2.5-pro available here
+const GEMINI_MODEL = 'gemini-2.5-pro';
 
-let genAI = null;
+let model = null;
 
-if (GEMINI_API_KEY) {
-  try {
-    genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}`);
-  } catch (e) {
-    console.warn(`[GeminiExtraction] ⚠ Init failed: ${e.message}`);
-  }
-} else {
-  console.warn('[GeminiExtraction] ⚠ No GEMINI_API_KEY — Gemini extraction disabled');
+try {
+  const vertexAI = new VertexAI({ project: GCP_PROJECT, location: GCP_LOCATION });
+  model = vertexAI.preview.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: {
+      maxOutputTokens: 65536,
+      temperature: 0.0,
+      responseMimeType: 'application/json',
+    },
+  });
+  console.log(`[GeminiExtraction] ✓ Initialized, model: ${GEMINI_MODEL}, location: ${GCP_LOCATION}`);
+} catch (e) {
+  console.warn(`[GeminiExtraction] ⚠ Init failed: ${e.message}`);
 }
 
 /**
  * Check if Gemini is available
  */
 export function isGeminiAvailable() {
-  return genAI !== null;
+  return model !== null;
 }
 
 /**
@@ -35,8 +43,8 @@ export function isGeminiAvailable() {
  * Single call — no chunking, no truncation, no JSON repair.
  */
 export async function extractPdfWithGemini(pdfBuffer, options = {}) {
-  if (!genAI) {
-    throw new Error('Gemini not initialized — check GEMINI_API_KEY');
+  if (!model) {
+    throw new Error('Gemini not initialized — check GCP credentials');
   }
 
   const pdfBase64 = pdfBuffer.toString('base64');
@@ -46,8 +54,7 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
   const startTime = Date.now();
 
   try {
-    const response = await genAI.models.generateContent({
-      model: GEMINI_MODEL,
+    const request = {
       contents: [{
         role: 'user',
         parts: [
@@ -55,18 +62,17 @@ export async function extractPdfWithGemini(pdfBuffer, options = {}) {
           { text: prompt }
         ]
       }],
-      config: {
-        maxOutputTokens: 65536,
-        temperature: 0.0,
-        responseMimeType: 'application/json',
-      }
-    });
+    };
 
-    if (!response?.text) {
-      throw new Error('Gemini returned empty response');
+    const responseStream = await model.generateContent(request);
+    const response = await responseStream.response;
+
+    if (!response?.candidates?.length) {
+      throw new Error('Gemini returned no candidates');
     }
 
-    const parsed = JSON.parse(response.text);
+    const responseText = response.candidates[0].content.parts[0].text;
+    const parsed = JSON.parse(responseText);
 
     // Normalize to standard format
     const rawSections = parsed.sections || (Array.isArray(parsed) ? parsed : []);
